@@ -37,12 +37,22 @@ add_project_arguments(
 sdl2_dep = dependency('sdl2')
 m_dep    = cc.find_library('m', required : false)
 
-doom_sources = files(
+# Shared framing/protocol code used by both binaries.
+net_sources = files(
+  'net/framing.c',
+)
+
+# ---- doom-engine ----------------------------------------------------------
+#
+# Headless game engine. Replaces i_video.c (SDL) with engine/i_video_net.c
+# (TCP). All other DOOM .c files remain unchanged.
+#
+engine_sources = files(
   'doomdef.c',
   'doomstat.c',
   'dstrings.c',
   'i_system.c',
-  'i_video.c',
+  'engine/i_video_net.c',
   'tables.c',
   'f_finale.c',
   'f_wipe.c',
@@ -97,8 +107,25 @@ doom_sources = files(
   'i_main.c',
 )
 
-executable('doom',
-  doom_sources,
-  dependencies : [sdl2_dep, m_dep],
+executable('doom-engine',
+  engine_sources + net_sources,
+  dependencies : [m_dep],
+  install : false,
+)
+
+# ---- doom-client ----------------------------------------------------------
+#
+# Thin SDL2 front-end. Opens a window, sends input, displays received frames.
+# No DOOM game logic.
+#
+client_sources = files(
+  'client/client_main.c',
+  'client/client_video.c',
+  'client/client_input.c',
+)
+
+executable('doom-client',
+  client_sources + net_sources,
+  dependencies : [sdl2_dep],
   install : false,
 )

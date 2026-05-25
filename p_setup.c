@@ -40,9 +40,6 @@ rcsid[] = "$Id: p_setup.c,v 1.5 1997/02/03 22:45:12 b1 Exp $";
 
 #include "doomdef.h"
 #include "p_local.h"
-
-#include "s_sound.h"
-
 #include "doomstat.h"
 
 
@@ -106,10 +103,7 @@ byte*		rejectmatrix;
 
 
 // Maintain single and multi player starting spots.
-#define MAX_DEATHMATCH_STARTS	10
 
-mapthing_t	deathmatchstarts[MAX_DEATHMATCH_STARTS];
-mapthing_t*	deathmatch_p;
 mapthing_t	playerstarts[MAXPLAYERS];
 
 
@@ -604,7 +598,6 @@ P_SetupLevel
     players[consoleplayer].viewz = 1; 
 
     // Make sure all sounds are stopped before Z_FreeTags.
-    S_Start ();			
 
     
 #if 0 // UNUSED
@@ -660,21 +653,8 @@ P_SetupLevel
     P_GroupLines ();
 
     bodyqueslot = 0;
-    deathmatch_p = deathmatchstarts;
     P_LoadThings (lumpnum+ML_THINGS);
     
-    // if deathmatch, randomly spawn the active players
-    if (deathmatch)
-    {
-	for (i=0 ; i<MAXPLAYERS ; i++)
-	    if (playeringame[i])
-	    {
-		players[i].mo = NULL;
-		G_DeathMatchSpawnPlayer (i);
-	    }
-			
-    }
-
     // clear special respawning que
     iquehead = iquetail = 0;		
 	

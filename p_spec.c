@@ -43,16 +43,10 @@ rcsid[] = "$Id: p_spec.c,v 1.6 1997/02/03 22:45:12 b1 Exp $";
 #include "p_local.h"
 
 #include "g_game.h"
-
-#include "s_sound.h"
-
 // State.
 #include "r_state.h"
 
 // Data.
-#include "sounds.h"
-
-
 //
 // Animating textures and planes
 // There is another anim_t used in wi_stuff, unrelated.
@@ -1148,7 +1142,6 @@ void P_UpdateSpecials (void)
 			buttonlist[i].btexture;
 		    break;
 		}
-		S_StartSound((mobj_t *)&buttonlist[i].soundorg,sfx_swtchn);
 		memset(&buttonlist[i],0,sizeof(button_t));
 	    }
 	}
@@ -1247,25 +1240,8 @@ void P_SpawnSpecials (void)
 	episode = 2;
 
     
-    // See if -TIMER needs to be used.
     levelTimer = false;
-	
-    i = M_CheckParm("-avg");
-    if (i && deathmatch)
-    {
-	levelTimer = true;
-	levelTimeCount = 20 * 60 * 35;
-    }
-	
-    i = M_CheckParm("-timer");
-    if (i && deathmatch)
-    {
-	int	time;
-	time = atoi(myargv[i+1]) * 60 * 35;
-	levelTimer = true;
-	levelTimeCount = time;
-    }
-    
+
     //	Init special SECTORs.
     sector = sectors;
     for (i=0 ; i<numsectors ; i++, sector++)

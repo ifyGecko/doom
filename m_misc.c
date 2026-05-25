@@ -204,22 +204,10 @@ extern int	screenblocks;
 
 extern int	showMessages;
 
-// machine-independent sound params
-extern	int	numChannels;
-
-
-// UNIX hack, to be removed.
-#ifdef SNDSERV
-extern char*	sndserver_filename;
-extern int	mb_used;
-#endif
-
 #ifdef LINUX
 char*		mousetype;
 char*		mousedev;
 #endif
-
-extern char*	chat_macros[];
 
 
 
@@ -243,8 +231,6 @@ typedef struct
 default_t	defaults[] =
 {
     {"mouse_sensitivity",&mouseSensitivity, 5},
-    {"sfx_volume",&snd_SfxVolume, 8},
-    {"music_volume",&snd_MusicVolume, 8},
     {"show_messages",&showMessages, 1},
     
 
@@ -261,12 +247,6 @@ default_t	defaults[] =
     {"key_strafe",&key_strafe, KEY_RALT},
     {"key_speed",&key_speed, KEY_RSHIFT},
 
-// UNIX hack, to be removed. 
-#ifdef SNDSERV
-    {"sndserver", &sndserver_filename, (intptr_t) "sndserver"},
-    {"mb_used", &mb_used, 2},
-#endif
-    
 #endif
 
 #ifdef LINUX
@@ -287,24 +267,7 @@ default_t	defaults[] =
 
     {"screenblocks",&screenblocks, 9},
     {"detaillevel",&detailLevel, 0},
-
-    {"snd_channels",&numChannels, 3},
-
-
-
-    {"usegamma",&usegamma, 0},
-
-    {"chatmacro0", &chat_macros[0], (intptr_t) HUSTR_CHATMACRO0 },
-    {"chatmacro1", &chat_macros[1], (intptr_t) HUSTR_CHATMACRO1 },
-    {"chatmacro2", &chat_macros[2], (intptr_t) HUSTR_CHATMACRO2 },
-    {"chatmacro3", &chat_macros[3], (intptr_t) HUSTR_CHATMACRO3 },
-    {"chatmacro4", &chat_macros[4], (intptr_t) HUSTR_CHATMACRO4 },
-    {"chatmacro5", &chat_macros[5], (intptr_t) HUSTR_CHATMACRO5 },
-    {"chatmacro6", &chat_macros[6], (intptr_t) HUSTR_CHATMACRO6 },
-    {"chatmacro7", &chat_macros[7], (intptr_t) HUSTR_CHATMACRO7 },
-    {"chatmacro8", &chat_macros[8], (intptr_t) HUSTR_CHATMACRO8 },
-    {"chatmacro9", &chat_macros[9], (intptr_t) HUSTR_CHATMACRO9 }
-
+    {"usegamma",&usegamma, 0}
 };
 
 int	numdefaults;

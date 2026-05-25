@@ -48,9 +48,6 @@ rcsid[] = "$Id: st_stuff.c,v 1.6 1997/02/03 22:45:13 b1 Exp $";
 
 #include "am_map.h"
 #include "m_cheat.h"
-
-#include "s_sound.h"
-
 // Needs access to LFB.
 #include "v_video.h"
 
@@ -59,8 +56,6 @@ rcsid[] = "$Id: st_stuff.c,v 1.6 1997/02/03 22:45:13 b1 Exp $";
 
 // Data.
 #include "dstrings.h"
-#include "sounds.h"
-
 //
 // STATUS BAR DATA
 //
@@ -502,10 +497,6 @@ void ST_refreshBackground(void)
     if (st_statusbaron)
     {
 	V_DrawPatch(ST_X, 0, BG, sbar);
-
-	if (netgame)
-	    V_DrawPatch(ST_FX, 0, BG, faceback);
-
 	V_CopyRect(ST_X, 0, BG, ST_WIDTH, ST_HEIGHT, ST_X, ST_Y, FG);
     }
 
@@ -540,8 +531,6 @@ ST_Responder (event_t* ev)
   // if a user keypress...
   else if (ev->type == ev_keydown)
   {
-    if (!netgame)
-    {
       // b. - enabled for more debug fun.
       // if (gameskill != sk_nightmare) {
       
@@ -590,35 +579,6 @@ ST_Responder (event_t* ev)
 	  plyr->cards[i] = true;
 	
 	plyr->message = STSTR_KFAADDED;
-      }
-      // 'mus' cheat for changing music
-      else if (cht_CheckCheat(&cheat_mus, ev->data1))
-      {
-	
-	char	buf[3];
-	int		musnum;
-	
-	plyr->message = STSTR_MUS;
-	cht_GetParam(&cheat_mus, buf);
-	
-	if (gamemode == commercial)
-	{
-	  musnum = mus_runnin + (buf[0]-'0')*10 + buf[1]-'0' - 1;
-	  
-	  if (((buf[0]-'0')*10 + buf[1]-'0') > 35)
-	    plyr->message = STSTR_NOMUS;
-	  else
-	    S_ChangeMusic(musnum, 1);
-	}
-	else
-	{
-	  musnum = mus_e1m1 + (buf[0]-'1')*9 + (buf[1]-'1');
-	  
-	  if (((buf[0]-'1')*9 + buf[1]-'1') > 31)
-	    plyr->message = STSTR_NOMUS;
-	  else
-	    S_ChangeMusic(musnum, 1);
-	}
       }
       // Simplified, accepting both "noclip" and "idspispopd".
       // no clipping mode cheat
@@ -670,7 +630,6 @@ ST_Responder (event_t* ev)
 		players[consoleplayer].mo->y);
 	plyr->message = buf;
       }
-    }
     
     // 'clev' change-level cheat
     if (cht_CheckCheat(&cheat_clev, ev->data1))
@@ -961,23 +920,11 @@ void ST_updateWidgets(void)
     // refresh everything if this is him coming back to life
     ST_updateFaceWidget();
 
-    // used by the w_armsbg widget
-    st_notdeathmatch = !deathmatch;
-    
-    // used by w_arms[] widgets
-    st_armson = st_statusbaron && !deathmatch; 
-
-    // used by w_frags widget
-    st_fragson = deathmatch && st_statusbaron; 
+    // single-player port: armor widget always on, frag widget always off
+    st_notdeathmatch = true;
+    st_armson = st_statusbaron;
+    st_fragson = false;
     st_fragscount = 0;
-
-    for (i=0 ; i<MAXPLAYERS ; i++)
-    {
-	if (i != consoleplayer)
-	    st_fragscount += plyr->frags[i];
-	else
-	    st_fragscount -= plyr->frags[i];
-    }
 
     // get rid of chat window if up because of message
     if (!--st_msgcounter)
@@ -1056,10 +1003,10 @@ void ST_drawWidgets(boolean refresh)
     int		i;
 
     // used by w_arms[] widgets
-    st_armson = st_statusbaron && !deathmatch;
+    st_armson = st_statusbaron;
 
     // used by w_frags widget
-    st_fragson = deathmatch && st_statusbaron; 
+    st_fragson = false;
 
     STlib_updateNum(&w_ready, refresh);
 

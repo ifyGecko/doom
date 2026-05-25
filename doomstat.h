@@ -31,10 +31,13 @@
 // We need globally shared data structures,
 //  for defining the global state variables.
 #include "doomdata.h"
-#include "d_net.h"
 
 // We need the playr data structure as well.
 #include "d_player.h"
+
+// Number of stored ticcmd entries per player for the ring buffer.
+// Used by netcmds[] and consistancy[][] arrays.
+#define BACKUPTICS              12
 
 
 #ifdef __GNUG__
@@ -87,37 +90,6 @@ extern  int		gamemap;
 
 // Nightmare mode flag, single player.
 extern  boolean         respawnmonsters;
-
-// Netgame? Only true if >1 player.
-extern  boolean	netgame;
-
-// Flag: true only if started as net deathmatch.
-// An enum might handle altdeath/cooperative better.
-extern  boolean	deathmatch;	
-	
-// -------------------------
-// Internal parameters for sound rendering.
-// These have been taken from the DOS version,
-//  but are not (yet) supported with Linux
-//  (e.g. no sound volume adjustment with menu.
-
-// These are not used, but should be (menu).
-// From m_menu.c:
-//  Sound FX volume has default, 0 - 15
-//  Music volume has default, 0 - 15
-// These are multiplied by 8.
-extern int snd_SfxVolume;      // maximum volume for sound
-extern int snd_MusicVolume;    // maximum volume for music
-
-// Current music/sfx card - index useless
-//  w/o a reference LUT in a sound module.
-// Ideally, this would use indices found
-//  in: /usr/include/linux/soundcard.h
-extern int snd_MusicDevice;
-extern int snd_SfxDevice;
-// Config file? Same disclaimer as above.
-extern int snd_DesiredMusicDevice;
-extern int snd_DesiredSfxDevice;
 
 
 // -------------------------
@@ -173,18 +145,8 @@ extern  int	leveltime;	// tics in game play for par
 
 
 
-// --------------------------------------
-// DEMO playback/recording related stuff.
-// No demo, there is a human player in charge?
-// Disable save/end game?
+// Disable save/end game while title screen is shown.
 extern  boolean	usergame;
-
-//?
-extern  boolean	demoplayback;
-extern  boolean	demorecording;
-
-// Quit after playing a demo from cmdline.
-extern  boolean		singledemo;	
 
 
 
@@ -214,11 +176,6 @@ extern	player_t	players[MAXPLAYERS];
 // Alive? Disconnected?
 extern  boolean		playeringame[MAXPLAYERS];
 
-
-// Player spawn spots for deathmatch.
-#define MAX_DM_STARTS   10
-extern  mapthing_t      deathmatchstarts[MAX_DM_STARTS];
-extern  mapthing_t*	deathmatch_p;
 
 // Player spawn spots.
 extern  mapthing_t      playerstarts[MAXPLAYERS];
@@ -268,23 +225,11 @@ extern int		skyflatnum;
 
 
 
-// Netgame stuff (buffers and pointers, i.e. indices).
-
-// This is ???
-extern  doomcom_t*	doomcom;
-
-// This points inside doomcom.
-extern  doomdata_t*	netbuffer;	
-
-
-extern  ticcmd_t	localcmds[BACKUPTICS];
 extern	int		rndindex;
 
 extern	int		maketic;
-extern  int             nettics[MAXNETNODES];
 
 extern  ticcmd_t        netcmds[MAXPLAYERS][BACKUPTICS];
-extern	int		ticdup;
 
 
 

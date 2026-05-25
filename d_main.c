@@ -45,12 +45,8 @@ static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #include "doomstat.h"
 
 #include "dstrings.h"
-#include "sounds.h"
-
-
 #include "z_zone.h"
 #include "w_wad.h"
-#include "s_sound.h"
 #include "v_video.h"
 
 #include "f_finale.h"
@@ -61,7 +57,6 @@ static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #include "m_menu.h"
 
 #include "i_system.h"
-#include "i_sound.h"
 #include "i_video.h"
 
 #include "g_game.h"
@@ -126,7 +121,6 @@ char		mapdir[1024];           // directory of development maps
 char		basedefault[1024];      // default file
 
 
-void D_CheckNetGame (void);
 void D_ProcessEvents (void);
 void G_BuildTiccmd (ticcmd_t* cmd);
 void D_DoAdvanceDemo (void);
@@ -313,7 +307,7 @@ void D_Display (void)
 
     // menus go directly to the screen
     M_Drawer ();          // menu is drawn even on top of everything
-    NetUpdate ();         // send out any new accumulation
+// send out any new accumulation
 
 
     // normal update
@@ -349,13 +343,8 @@ void D_Display (void)
 //
 //  D_DoomLoop
 //
-extern  boolean         demorecording;
-
 void D_DoomLoop (void)
 {
-    if (demorecording)
-	G_BeginRecording ();
-		
     if (M_CheckParm ("-debugfile"))
     {
 	char    filename[20];
@@ -363,48 +352,30 @@ void D_DoomLoop (void)
 	printf ("debug output to: %s\n",filename);
 	debugfile = fopen (filename,"w");
     }
-	
+
     I_InitGraphics ();
 
     while (1)
     {
 	// frame syncronous IO operations
-	I_StartFrame ();                
-	
-	// process one or more tics
-	if (singletics)
-	{
-	    I_StartTic ();
-	    D_ProcessEvents ();
-	    G_BuildTiccmd (&netcmds[consoleplayer][maketic%BACKUPTICS]);
-	    if (advancedemo)
-		D_DoAdvanceDemo ();
-	    M_Ticker ();
-	    G_Ticker ();
-	    gametic++;
-	    maketic++;
-	}
-	else
-	{
-	    TryRunTics (); // will run at least one tic
-	}
-		
-	S_UpdateSounds (players[consoleplayer].mo);// move positional sounds
+	I_StartFrame ();
+
+	// process one tic
+	I_StartTic ();
+	D_ProcessEvents ();
+	G_BuildTiccmd (&netcmds[consoleplayer][maketic%BACKUPTICS]);
+	if (advancedemo)
+	    D_DoAdvanceDemo ();
+	M_Ticker ();
+	G_Ticker ();
+	gametic++;
+	maketic++;
 
 	// Update display, next frame, with current state.
 	D_Display ();
-
-#ifndef SNDSERV
-	// Sound mixing for the buffer is snychronous.
-	I_UpdateSound();
-#endif	
-	// Synchronous sound output is explicitly called.
-#ifndef SNDINTR
-	// Update sound output.
-	I_SubmitSound();
-#endif
     }
 }
+
 
 
 
@@ -451,7 +422,7 @@ void D_AdvanceDemo (void)
 // This cycles through the demo sequences.
 // FIXME - version dependend demo numbers?
 //
- void D_DoAdvanceDemo (void)
+void D_DoAdvanceDemo (void)
 {
     players[consoleplayer].playerstate = PST_LIVE;  // not reborn
     advancedemo = false;
@@ -459,62 +430,9 @@ void D_AdvanceDemo (void)
     paused = false;
     gameaction = ga_nothing;
 
-    if ( gamemode == retail )
-      demosequence = (demosequence+1)%7;
-    else
-      demosequence = (demosequence+1)%6;
-    
-    switch (demosequence)
-    {
-      case 0:
-	if ( gamemode == commercial )
-	    pagetic = 35 * 11;
-	else
-	    pagetic = 170;
-	gamestate = GS_DEMOSCREEN;
-	pagename = "TITLEPIC";
-	if ( gamemode == commercial )
-	  S_StartMusic(mus_dm2ttl);
-	else
-	  S_StartMusic (mus_intro);
-	break;
-      case 1:
-	G_DeferedPlayDemo ("demo1");
-	break;
-      case 2:
-	pagetic = 200;
-	gamestate = GS_DEMOSCREEN;
-	pagename = "CREDIT";
-	break;
-      case 3:
-	G_DeferedPlayDemo ("demo2");
-	break;
-      case 4:
-	gamestate = GS_DEMOSCREEN;
-	if ( gamemode == commercial)
-	{
-	    pagetic = 35 * 11;
-	    pagename = "TITLEPIC";
-	    S_StartMusic(mus_dm2ttl);
-	}
-	else
-	{
-	    pagetic = 200;
-
-	    if ( gamemode == retail )
-	      pagename = "CREDIT";
-	    else
-	      pagename = "HELP2";
-	}
-	break;
-      case 5:
-	G_DeferedPlayDemo ("demo3");
-	break;
-        // THE DEFINITIVE DOOM Special Edition demo
-      case 6:
-	G_DeferedPlayDemo ("demo4");
-	break;
-    }
+    pagetic = 35 * 11;
+    gamestate = GS_DEMOSCREEN;
+    pagename = "TITLEPIC";
 }
 
 
@@ -525,7 +443,7 @@ void D_AdvanceDemo (void)
 void D_StartTitle (void)
 {
     gameaction = ga_nothing;
-    demosequence = -1;
+    demosequence = 0;
     D_AdvanceDemo ();
 }
 
@@ -809,10 +727,6 @@ void D_DoomMain (void)
     respawnparm = M_CheckParm ("-respawn");
     fastparm = M_CheckParm ("-fast");
     devparm = M_CheckParm ("-devparm");
-    if (M_CheckParm ("-altdeath"))
-	deathmatch = 2;
-    else if (M_CheckParm ("-deathmatch"))
-	deathmatch = 1;
 
     switch ( gamemode )
     {
@@ -945,18 +859,6 @@ void D_DoomMain (void)
 	    D_AddFile (myargv[p]);
     }
 
-    p = M_CheckParm ("-playdemo");
-
-    if (!p)
-	p = M_CheckParm ("-timedemo");
-
-    if (p && p < myargc-1)
-    {
-	sprintf (file,"%s.lmp", myargv[p+1]);
-	D_AddFile (file);
-	printf("Playing demo %s.lmp.\n",myargv[p+1]);
-    }
-    
     // get skill / episode / map from parms
     startskill = sk_medium;
     startepisode = 1;
@@ -979,21 +881,6 @@ void D_DoomMain (void)
 	autostart = true;
     }
 	
-    p = M_CheckParm ("-timer");
-    if (p && p < myargc-1 && deathmatch)
-    {
-	int     time;
-	time = atoi(myargv[p+1]);
-	printf("Levels will end after %d minute",time);
-	if (time>1)
-	    printf("s");
-	printf(".\n");
-    }
-
-    p = M_CheckParm ("-avg");
-    if (p && p < myargc-1 && deathmatch)
-	printf("Austin Virtual Gaming: Levels will end after 20 minutes\n");
-
     p = M_CheckParm ("-warp");
     if (p && p < myargc-1)
     {
@@ -1100,11 +987,8 @@ void D_DoomMain (void)
     printf ("I_Init: Setting up machine state.\n");
     I_Init ();
 
-    printf ("D_CheckNetGame: Checking network game status.\n");
-    D_CheckNetGame ();
-
-    printf ("S_Init: Setting up sound.\n");
-    S_Init (snd_SfxVolume /* *8 */, snd_MusicVolume /* *8*/ );
+    consoleplayer = displayplayer = 0;
+    playeringame[0] = true;
 
     printf ("HU_Init: Setting up heads up display.\n");
     HU_Init ();
@@ -1123,30 +1007,6 @@ void D_DoomMain (void)
 	printf ("External statistics registered.\n");
     }
     
-    // start the apropriate game based on parms
-    p = M_CheckParm ("-record");
-
-    if (p && p < myargc-1)
-    {
-	G_RecordDemo (myargv[p+1]);
-	autostart = true;
-    }
-	
-    p = M_CheckParm ("-playdemo");
-    if (p && p < myargc-1)
-    {
-	singledemo = true;              // quit after one demo
-	G_DeferedPlayDemo (myargv[p+1]);
-	D_DoomLoop ();  // never returns
-    }
-	
-    p = M_CheckParm ("-timedemo");
-    if (p && p < myargc-1)
-    {
-	G_TimeDemo (myargv[p+1]);
-	D_DoomLoop ();  // never returns
-    }
-	
     p = M_CheckParm ("-loadgame");
     if (p && p < myargc-1)
     {
@@ -1160,7 +1020,7 @@ void D_DoomMain (void)
 
     if ( gameaction != ga_loadgame )
     {
-	if (autostart || netgame)
+	if (autostart)
 	    G_InitNew (startskill, startepisode, startmap);
 	else
 	    D_StartTitle ();                // start up intro loop

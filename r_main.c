@@ -33,8 +33,6 @@ static const char rcsid[] = "$Id: r_main.c,v 1.5 1997/02/03 22:45:12 b1 Exp $";
 
 
 #include "doomdef.h"
-#include "d_net.h"
-
 #include "m_bbox.h"
 
 #include "r_local.h"
@@ -878,21 +876,17 @@ void R_RenderPlayerView (player_t* player)
     R_ClearSprites ();
     
     // check for new console commands.
-    NetUpdate ();
 
     // The head node is the last node output.
     R_RenderBSPNode (numnodes-1);
     
     // Check for new console commands.
-    NetUpdate ();
     
     R_DrawPlanes ();
     
     // Check for new console commands.
-    NetUpdate ();
     
     R_DrawMasked ();
 
     // Check for new console commands.
-    NetUpdate ();				
 }

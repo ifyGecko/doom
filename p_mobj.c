@@ -30,13 +30,8 @@ rcsid[] = "$Id: p_mobj.c,v 1.5 1997/02/03 22:45:12 b1 Exp $";
 
 #include "doomdef.h"
 #include "p_local.h"
-#include "sounds.h"
-
 #include "st_stuff.h"
 #include "hu_stuff.h"
-
-#include "s_sound.h"
-
 #include "doomstat.h"
 
 
@@ -99,9 +94,6 @@ void P_ExplodeMissile (mobj_t* mo)
 	mo->tics = 1;
 
     mo->flags &= ~MF_MISSILE;
-
-    if (mo->info->deathsound)
-	S_StartSound (mo, mo->info->deathsound);
 }
 
 
@@ -304,7 +296,6 @@ void P_ZMovement (mobj_t* mo)
 		// after hitting the ground (hard),
 		// and utter appropriate sound.
 		mo->player->deltaviewheight = mo->momz>>3;
-		S_StartSound (mo, sfx_oof);
 	    }
 	    mo->momz = 0;
 	}
@@ -376,14 +367,12 @@ P_NightmareRespawn (mobj_t* mobj)
 		      mobj->y,
 		      mobj->subsector->sector->floorheight , MT_TFOG); 
     // initiate teleport sound
-    S_StartSound (mo, sfx_telept);
 
     // spawn a teleport fog at the new spot
     ss = R_PointInSubsector (x,y); 
 
     mo = P_SpawnMobj (x, y, ss->sector->floorheight , MT_TFOG); 
 
-    S_StartSound (mo, sfx_telept);
 
     // spawn the new monster
     mthing = &mobj->spawnpoint;
@@ -563,7 +552,6 @@ void P_RemoveMobj (mobj_t* mobj)
     P_UnsetThingPosition (mobj);
     
     // stop any playing sound
-    S_StopSound (mobj);
     
     // free block
     P_RemoveThinker ((thinker_t*)mobj);
@@ -587,9 +575,8 @@ void P_RespawnSpecials (void)
     
     int			i;
 
-    // only respawn items in deathmatch
-    if (deathmatch != 2)
-	return;	// 
+    // single-player port: items never respawn
+    return;
 
     // nothing left to respawn?
     if (iquehead == iquetail)
@@ -607,7 +594,6 @@ void P_RespawnSpecials (void)
     // spawn a teleport fog at the new spot
     ss = R_PointInSubsector (x,y); 
     mo = P_SpawnMobj (x, y, ss->sector->floorheight , MT_IFOG); 
-    S_StartSound (mo, sfx_itmbk);
 
     // find which type to spawn
     for (i=0 ; i< NUMMOBJTYPES ; i++)
@@ -684,12 +670,7 @@ void P_SpawnPlayer (mapthing_t* mthing)
 
     // setup gun psprite
     P_SetupPsprites (p);
-    
-    // give all cards in death match mode
-    if (deathmatch)
-	for (i=0 ; i<NUMCARDS ; i++)
-	    p->cards[i] = true;
-			
+
     if (mthing->type-1 == consoleplayer)
     {
 	// wake up the status bar
@@ -714,30 +695,20 @@ void P_SpawnMapThing (mapthing_t* mthing)
     fixed_t		y;
     fixed_t		z;
 		
-    // count deathmatch start positions
+    // ignore deathmatch start positions in single-player
     if (mthing->type == 11)
-    {
-	if (deathmatch_p < &deathmatchstarts[10])
-	{
-	    memcpy (deathmatch_p, mthing, sizeof(*mthing));
-	    deathmatch_p++;
-	}
 	return;
-    }
 	
     // check for players specially
     if (mthing->type <= 4)
     {
-	// save spots for respawning in network games
 	playerstarts[mthing->type-1] = *mthing;
-	if (!deathmatch)
-	    P_SpawnPlayer (mthing);
-
+	P_SpawnPlayer (mthing);
 	return;
     }
 
-    // check for apropriate skill level
-    if (!netgame && (mthing->options & 16) )
+    // check for apropriate skill level (multiplayer-only flag)
+    if (mthing->options & 16)
 	return;
 		
     if (gameskill == sk_baby)
@@ -759,10 +730,6 @@ void P_SpawnMapThing (mapthing_t* mthing)
 	I_Error ("P_SpawnMapThing: Unknown type %i at (%i, %i)",
 		 mthing->type,
 		 mthing->x, mthing->y);
-		
-    // don't spawn keycards and players in deathmatch
-    if (deathmatch && mobjinfo[i].flags & MF_NOTDMATCH)
-	return;
 		
     // don't spawn any monsters if -nomonsters
     if (nomonsters
@@ -898,9 +865,6 @@ P_SpawnMissile
     th = P_SpawnMobj (source->x,
 		      source->y,
 		      source->z + 4*8*FRACUNIT, type);
-    
-    if (th->info->seesound)
-	S_StartSound (th, th->info->seesound);
 
     th->target = source;	// where it came from
     an = R_PointToAngle2 (source->x, source->y, dest->x, dest->y);	
@@ -971,9 +935,6 @@ P_SpawnPlayerMissile
     z = source->z + 4*8*FRACUNIT;
 	
     th = P_SpawnMobj (x,y,z, type);
-
-    if (th->info->seesound)
-	S_StartSound (th, th->info->seesound);
 
     th->target = source;
     th->angle = an;

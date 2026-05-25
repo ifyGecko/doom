@@ -109,8 +109,6 @@ typedef struct player_s
     boolean		cards[NUMCARDS];
     boolean		backpack;
     
-    // Frags, kills of other players.
-    int			frags[MAXPLAYERS];
     weapontype_t	readyweapon;
     
     // Is wp_nochange if not changing.
@@ -179,7 +177,6 @@ typedef struct
     int		sitems;
     int		ssecret;
     int		stime; 
-    int		frags[4];
     int		score;	// current score on entry, modified on return
   
 } wbplayerstruct_t;

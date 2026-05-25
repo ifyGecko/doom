@@ -28,16 +28,10 @@ rcsid[] = "$Id: p_floor.c,v 1.4 1997/02/03 16:47:54 b1 Exp $";
 #include "z_zone.h"
 #include "doomdef.h"
 #include "p_local.h"
-
-#include "s_sound.h"
-
 // State.
 #include "doomstat.h"
 #include "r_state.h"
 // Data.
-#include "sounds.h"
-
-
 //
 // FLOORS
 //
@@ -214,11 +208,7 @@ void T_MoveFloor(floormove_t* floor)
 		      floor->speed,
 		      floor->floordestheight,
 		      floor->crush,0,floor->direction);
-    
-    if (!(leveltime&7))
-	S_StartSound((mobj_t *)&floor->sector->soundorg,
-		     sfx_stnmov);
-    
+
     if (res == pastdest)
     {
 	floor->sector->specialdata = NULL;
@@ -247,8 +237,6 @@ void T_MoveFloor(floormove_t* floor)
 	}
 	P_RemoveThinker(&floor->thinker);
 
-	S_StartSound((mobj_t *)&floor->sector->soundorg,
-		     sfx_pstop);
     }
 
 }

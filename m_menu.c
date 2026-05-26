@@ -25,10 +25,6 @@
 static const char
 rcsid[] = "$Id: m_menu.c,v 1.7 1997/02/03 22:45:10 b1 Exp $";
 
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <ctype.h>
 
@@ -51,7 +47,6 @@ rcsid[] = "$Id: m_menu.c,v 1.7 1997/02/03 22:45:10 b1 Exp $";
 
 #include "g_game.h"
 
-#include "m_argv.h"
 #include "m_swap.h"
 #include "doomstat.h"
 
@@ -81,9 +76,6 @@ int			screenblocks;		// has default
 // temp for screenblocks (0-9)
 int			screenSize;		
 
-// -1 = no quicksave slot picked!
-int			quickSaveSlot;          
-
  // 1 = message to be printed
 int			messageToPrint;
 // ...and here is the message string!
@@ -99,8 +91,6 @@ boolean			messageNeedsInput;
 
 void    (*messageRoutine)(int response);
 
-#define SAVESTRINGSIZE 	24
-
 char gammamsg[5][26] =
 {
     GAMMALVL0,
@@ -110,13 +100,6 @@ char gammamsg[5][26] =
     GAMMALVL4
 };
 
-// we are going to be entering a savegame string
-int			saveStringEnter;              
-int             	saveSlot;	// which slot to save in
-int			saveCharIndex;	// which char we're editing
-// old save description before edit
-char			saveOldString[SAVESTRINGSIZE];  
-
 boolean			inhelpscreens;
 boolean			menuactive;
 
@@ -124,7 +107,6 @@ boolean			menuactive;
 #define LINEHEIGHT		16
 
 extern boolean		sendpause;
-char			savegamestrings[10][SAVESTRINGSIZE];
 
 char	endstring[160];
 
@@ -178,8 +160,6 @@ menu_t*	currentMenu;
 void M_NewGame(int choice);
 void M_Episode(int choice);
 void M_ChooseSkill(int choice);
-void M_LoadGame(int choice);
-void M_SaveGame(int choice);
 void M_Options(int choice);
 void M_EndGame(int choice);
 void M_ReadThis(int choice);
@@ -193,11 +173,6 @@ void M_SizeDisplay(int choice);
 void M_StartGame(int choice);
 
 void M_FinishReadThis(int choice);
-void M_LoadSelect(int choice);
-void M_SaveSelect(int choice);
-void M_ReadSaveStrings(void);
-void M_QuickSave(void);
-void M_QuickLoad(void);
 
 void M_DrawMainMenu(void);
 void M_DrawReadThis1(void);
@@ -205,10 +180,7 @@ void M_DrawReadThis2(void);
 void M_DrawNewGame(void);
 void M_DrawEpisode(void);
 void M_DrawOptions(void);
-void M_DrawLoad(void);
-void M_DrawSave(void);
 
-void M_DrawSaveLoadBorder(int x,int y);
 void M_SetupNextMenu(menu_t *menudef);
 void M_DrawThermo(int x,int y,int thermWidth,int thermDot);
 void M_DrawEmptyCell(menu_t *menu,int item);
@@ -231,8 +203,6 @@ enum
 {
     newgame = 0,
     options,
-    loadgame,
-    savegame,
     readthis,
     quitdoom,
     main_end
@@ -242,8 +212,6 @@ menuitem_t MainMenu[]=
 {
     {1,"M_NGAME",M_NewGame,'n'},
     {1,"M_OPTION",M_Options,'o'},
-    {1,"M_LOADG",M_LoadGame,'l'},
-    {1,"M_SAVEG",M_SaveGame,'s'},
     // Another hickup with Special edition.
     {1,"M_RDTHIS",M_ReadThis,'r'},
     {1,"M_QUITG",M_QuitDOOM,'q'}
@@ -402,290 +370,6 @@ menu_t  ReadDef2 =
     330,175,
     0
 };
-
-//
-// LOAD GAME MENU
-//
-enum
-{
-    load1,
-    load2,
-    load3,
-    load4,
-    load5,
-    load6,
-    load_end
-} load_e;
-
-menuitem_t LoadMenu[]=
-{
-    {1,"", M_LoadSelect,'1'},
-    {1,"", M_LoadSelect,'2'},
-    {1,"", M_LoadSelect,'3'},
-    {1,"", M_LoadSelect,'4'},
-    {1,"", M_LoadSelect,'5'},
-    {1,"", M_LoadSelect,'6'}
-};
-
-menu_t  LoadDef =
-{
-    load_end,
-    &MainDef,
-    LoadMenu,
-    M_DrawLoad,
-    80,54,
-    0
-};
-
-//
-// SAVE GAME MENU
-//
-menuitem_t SaveMenu[]=
-{
-    {1,"", M_SaveSelect,'1'},
-    {1,"", M_SaveSelect,'2'},
-    {1,"", M_SaveSelect,'3'},
-    {1,"", M_SaveSelect,'4'},
-    {1,"", M_SaveSelect,'5'},
-    {1,"", M_SaveSelect,'6'}
-};
-
-menu_t  SaveDef =
-{
-    load_end,
-    &MainDef,
-    SaveMenu,
-    M_DrawSave,
-    80,54,
-    0
-};
-
-
-//
-// M_ReadSaveStrings
-//  read the strings from the savegame files
-//
-void M_ReadSaveStrings(void)
-{
-    int             handle;
-    int             count;
-    int             i;
-    char    name[256];
-	
-    for (i = 0;i < load_end;i++)
-    {
-	if (M_CheckParm("-cdrom"))
-	    sprintf(name,"c:\\doomdata\\"SAVEGAMENAME"%d.dsg",i);
-	else
-	    sprintf(name,SAVEGAMENAME"%d.dsg",i);
-
-	handle = open (name, O_RDONLY | 0, 0666);
-	if (handle == -1)
-	{
-	    strcpy(&savegamestrings[i][0],EMPTYSTRING);
-	    LoadMenu[i].status = 0;
-	    continue;
-	}
-	count = read (handle, &savegamestrings[i], SAVESTRINGSIZE);
-	close (handle);
-	LoadMenu[i].status = 1;
-    }
-}
-
-
-//
-// M_LoadGame & Cie.
-//
-void M_DrawLoad(void)
-{
-    int             i;
-	
-    V_DrawPatchDirect (72,28,0,W_CacheLumpName("M_LOADG",PU_CACHE));
-    for (i = 0;i < load_end; i++)
-    {
-	M_DrawSaveLoadBorder(LoadDef.x,LoadDef.y+LINEHEIGHT*i);
-	M_WriteText(LoadDef.x,LoadDef.y+LINEHEIGHT*i,savegamestrings[i]);
-    }
-}
-
-
-
-//
-// Draw border for the savegame description
-//
-void M_DrawSaveLoadBorder(int x,int y)
-{
-    int             i;
-	
-    V_DrawPatchDirect (x-8,y+7,0,W_CacheLumpName("M_LSLEFT",PU_CACHE));
-	
-    for (i = 0;i < 24;i++)
-    {
-	V_DrawPatchDirect (x,y+7,0,W_CacheLumpName("M_LSCNTR",PU_CACHE));
-	x += 8;
-    }
-
-    V_DrawPatchDirect (x,y+7,0,W_CacheLumpName("M_LSRGHT",PU_CACHE));
-}
-
-
-
-//
-// User wants to load this game
-//
-void M_LoadSelect(int choice)
-{
-    char    name[256];
-	
-    if (M_CheckParm("-cdrom"))
-	sprintf(name,"c:\\doomdata\\"SAVEGAMENAME"%d.dsg",choice);
-    else
-	sprintf(name,SAVEGAMENAME"%d.dsg",choice);
-    G_LoadGame (name);
-    M_ClearMenus ();
-}
-
-//
-// Selected from DOOM menu
-//
-void M_LoadGame (int choice)
-{
-    M_SetupNextMenu(&LoadDef);
-    M_ReadSaveStrings();
-}
-
-
-//
-//  M_SaveGame & Cie.
-//
-void M_DrawSave(void)
-{
-    int             i;
-	
-    V_DrawPatchDirect (72,28,0,W_CacheLumpName("M_SAVEG",PU_CACHE));
-    for (i = 0;i < load_end; i++)
-    {
-	M_DrawSaveLoadBorder(LoadDef.x,LoadDef.y+LINEHEIGHT*i);
-	M_WriteText(LoadDef.x,LoadDef.y+LINEHEIGHT*i,savegamestrings[i]);
-    }
-	
-    if (saveStringEnter)
-    {
-	i = M_StringWidth(savegamestrings[saveSlot]);
-	M_WriteText(LoadDef.x + i,LoadDef.y+LINEHEIGHT*saveSlot,"_");
-    }
-}
-
-//
-// M_Responder calls this when user is finished
-//
-void M_DoSave(int slot)
-{
-    G_SaveGame (slot,savegamestrings[slot]);
-    M_ClearMenus ();
-
-    // PICK QUICKSAVE SLOT YET?
-    if (quickSaveSlot == -2)
-	quickSaveSlot = slot;
-}
-
-//
-// User wants to save. Start string input for M_Responder
-//
-void M_SaveSelect(int choice)
-{
-    // we are going to be intercepting all chars
-    saveStringEnter = 1;
-    
-    saveSlot = choice;
-    strcpy(saveOldString,savegamestrings[choice]);
-    if (!strcmp(savegamestrings[choice],EMPTYSTRING))
-	savegamestrings[choice][0] = 0;
-    saveCharIndex = strlen(savegamestrings[choice]);
-}
-
-//
-// Selected from DOOM menu
-//
-void M_SaveGame (int choice)
-{
-    if (!usergame)
-    {
-	M_StartMessage(SAVEDEAD,NULL,false);
-	return;
-    }
-	
-    if (gamestate != GS_LEVEL)
-	return;
-	
-    M_SetupNextMenu(&SaveDef);
-    M_ReadSaveStrings();
-}
-
-
-
-//
-//      M_QuickSave
-//
-char    tempstring[80];
-
-void M_QuickSaveResponse(int ch)
-{
-    if (ch == 'y')
-    {
-	M_DoSave(quickSaveSlot);
-    }
-}
-
-void M_QuickSave(void)
-{
-    if (!usergame)
-    {
-	return;
-    }
-
-    if (gamestate != GS_LEVEL)
-	return;
-	
-    if (quickSaveSlot < 0)
-    {
-	M_StartControlPanel();
-	M_ReadSaveStrings();
-	M_SetupNextMenu(&SaveDef);
-	quickSaveSlot = -2;	// means to pick a slot now
-	return;
-    }
-    sprintf(tempstring,QSPROMPT,savegamestrings[quickSaveSlot]);
-    M_StartMessage(tempstring,M_QuickSaveResponse,true);
-}
-
-
-
-//
-// M_QuickLoad
-//
-void M_QuickLoadResponse(int ch)
-{
-    if (ch == 'y')
-    {
-	M_LoadSelect(quickSaveSlot);
-    }
-}
-
-
-void M_QuickLoad(void)
-{
-    if (quickSaveSlot < 0)
-    {
-	M_StartMessage(QSAVESPOT,NULL,false);
-	return;
-    }
-    sprintf(tempstring,QLPROMPT,savegamestrings[quickSaveSlot]);
-    M_StartMessage(tempstring,M_QuickLoadResponse,true);
-}
-
-
-
 
 //
 // Read This Menus
@@ -1289,48 +973,6 @@ boolean M_Responder (event_t* ev)
 	return false;
 
     
-    // Save Game string input
-    if (saveStringEnter)
-    {
-	switch(ch)
-	{
-	  case KEY_BACKSPACE:
-	    if (saveCharIndex > 0)
-	    {
-		saveCharIndex--;
-		savegamestrings[saveSlot][saveCharIndex] = 0;
-	    }
-	    break;
-				
-	  case KEY_ESCAPE:
-	    saveStringEnter = 0;
-	    strcpy(&savegamestrings[saveSlot][0],saveOldString);
-	    break;
-				
-	  case KEY_ENTER:
-	    saveStringEnter = 0;
-	    if (savegamestrings[saveSlot][0])
-		M_DoSave(saveSlot);
-	    break;
-				
-	  default:
-	    ch = toupper(ch);
-	    if (ch != 32)
-		if (ch-HU_FONTSTART < 0 || ch-HU_FONTSTART >= HU_FONTSIZE)
-		    break;
-	    if (ch >= 32 && ch <= 127 &&
-		saveCharIndex < SAVESTRINGSIZE-1 &&
-		M_StringWidth(savegamestrings[saveSlot]) <
-		(SAVESTRINGSIZE-2)*8)
-	    {
-		savegamestrings[saveSlot][saveCharIndex++] = ch;
-		savegamestrings[saveSlot][saveCharIndex] = 0;
-	    }
-	    break;
-	}
-	return true;
-    }
-    
     // Take care of any messages that need input
     if (messageToPrint)
     {
@@ -1381,22 +1023,8 @@ boolean M_Responder (event_t* ev)
 	    itemOn = 0;
 	    return true;
 				
-	  case KEY_F2:            // Save
-	    M_StartControlPanel();
-	    M_SaveGame(0);
-	    return true;
-				
-	  case KEY_F3:            // Load
-	    M_StartControlPanel();
-	    M_LoadGame(0);
-	    return true;
-				
 	  case KEY_F5:            // Detail toggle
 	    M_ChangeDetail(0);
-	    return true;
-				
-	  case KEY_F6:            // Quicksave
-	    M_QuickSave();
 	    return true;
 				
 	  case KEY_F7:            // End game
@@ -1405,10 +1033,6 @@ boolean M_Responder (event_t* ev)
 				
 	  case KEY_F8:            // Toggle messages
 	    M_ChangeMessages(0);
-	    return true;
-				
-	  case KEY_F9:            // Quickload
-	    M_QuickLoad();
 	    return true;
 				
 	  case KEY_F10:           // Quit DOOM
@@ -1665,7 +1289,6 @@ void M_Init (void)
     messageToPrint = 0;
     messageString = NULL;
     messageLastMenuActive = menuactive;
-    quickSaveSlot = -1;
 
     // Here we could catch other version dependencies,
     //  like HELP1/2, and four episodes.

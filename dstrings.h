@@ -37,10 +37,6 @@
 #include "d_englsh.h"
 #endif
 
-// Misc. other strings.
-#define SAVEGAMENAME	"doomsav"
-
-
 //
 // File locations,
 //  relative to current position.

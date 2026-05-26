@@ -1019,25 +1019,10 @@ void D_DoomMain (void)
 	printf ("External statistics registered.\n");
     }
     
-    p = M_CheckParm ("-loadgame");
-    if (p && p < myargc-1)
-    {
-	if (M_CheckParm("-cdrom"))
-	    sprintf(file, "c:\\doomdata\\"SAVEGAMENAME"%c.dsg",myargv[p+1][0]);
-	else
-	    sprintf(file, SAVEGAMENAME"%c.dsg",myargv[p+1][0]);
-	G_LoadGame (file);
-    }
-	
-
-    if ( gameaction != ga_loadgame )
-    {
-	if (autostart)
-	    G_InitNew (startskill, startepisode, startmap);
-	else
-	    D_StartTitle ();                // start up intro loop
-
-    }
+    if (autostart)
+	G_InitNew (startskill, startepisode, startmap);
+    else
+	D_StartTitle ();                // start up intro loop
 
     D_DoomLoop ();  // never returns
 }

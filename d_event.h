@@ -55,9 +55,6 @@ typedef enum
     ga_nothing,
     ga_loadlevel,
     ga_newgame,
-    ga_loadgame,
-    ga_savegame,
-    ga_playdemo,
     ga_completed,
     ga_victory,
     ga_worlddone,
@@ -89,13 +86,6 @@ typedef enum
 
     // Pause the game.
     BTS_PAUSE		= 1,
-    // Save the game at each console.
-    BTS_SAVEGAME	= 2,
-
-    // Savegame slot numbers
-    //  occupy the second byte of buttons.    
-    BTS_SAVEMASK	= (4+8+16),
-    BTS_SAVESHIFT 	= 2,
   
 } buttoncode_t;
 

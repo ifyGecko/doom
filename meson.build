@@ -85,7 +85,6 @@ engine_sources = files(
   'p_mobj.c',
   'p_telept.c',
   'p_tick.c',
-  'p_saveg.c',
   'p_user.c',
   'r_bsp.c',
   'r_data.c',

@@ -41,10 +41,6 @@
 #define QUITMSG	"are you sure you want to\nquit this great game?"
 #define LOADNET 	"you can't do load while in a net game!\n\n"PRESSKEY
 #define QLOADNET	"you can't quickload during a netgame!\n\n"PRESSKEY
-#define QSAVESPOT	"you haven't picked a quicksave slot yet!\n\n"PRESSKEY
-#define SAVEDEAD 	"you can't save if you aren't playing!\n\n"PRESSKEY
-#define QSPROMPT 	"quicksave over your game named\n\n'%s'?\n\n"PRESSYN
-#define QLPROMPT	"do you want to quickload the game named\n\n'%s'?\n\n"PRESSYN
 
 #define NEWGAME	\
 "you can't start a new game\n"\
@@ -72,7 +68,6 @@
 #define GAMMALVL2	"Gamma correction level 2"
 #define GAMMALVL3	"Gamma correction level 3"
 #define GAMMALVL4	"Gamma correction level 4"
-#define EMPTYSTRING	"empty slot"
 
 //
 //	P_inter.C
@@ -128,11 +123,6 @@
 #define PD_BLUEK	"You need a blue key to open this door"
 #define PD_REDK	"You need a red key to open this door"
 #define PD_YELLOWK	"You need a yellow key to open this door"
-
-//
-//	G_game.C
-//
-#define GGSAVED	"game saved."
 
 //
 //	HU_stuff.C

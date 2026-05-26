@@ -39,7 +39,6 @@ rcsid[] = "$Id: g_game.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #include "i_system.h"
 
 #include "p_setup.h"
-#include "p_saveg.h"
 #include "p_tick.h"
 
 #include "d_main.h"
@@ -66,11 +65,6 @@ rcsid[] = "$Id: g_game.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 #include "g_game.h"
 
 
-#define SAVEGAMESIZE	0x2c000
-#define SAVESTRINGSIZE	24
-
-
-
 void	G_PlayerReborn (int player); 
 void	G_InitNew (skill_t skill, int episode, int map); 
  
@@ -78,11 +72,9 @@ void	G_DoReborn (int playernum);
  
 void	G_DoLoadLevel (void); 
 void	G_DoNewGame (void); 
-void	G_DoLoadGame (void); 
 void	G_DoCompleted (void); 
 void	G_DoVictory (void); 
 void	G_DoWorldDone (void); 
-void	G_DoSaveGame (void); 
  
  
 gameaction_t    gameaction; 
@@ -94,7 +86,6 @@ int             gamemap;
  
 boolean         paused; 
 boolean         sendpause;             	// send a pause event next tic 
-boolean         sendsave;             	// send a save event next tic 
 boolean         usergame;               // ok to save / end game 
  
 boolean         nodrawers;              // for comparative timing purposes 
@@ -120,8 +111,6 @@ short		consistancy[MAXPLAYERS][BACKUPTICS];
 
 ticcmd_t        netcmds[MAXPLAYERS][BACKUPTICS];
 int             maketic;
- 
-byte*		savebuffer;
  
  
 // 
@@ -184,9 +173,6 @@ int             joyxmove;
 int		joyymove;
 boolean         joyarray[5]; 
 boolean*	joybuttons = &joyarray[1];		// allow [-1] 
- 
-int		savegameslot; 
-char		savedescription[32]; 
  
  
 #define	BODYQUESIZE	32
@@ -410,12 +396,6 @@ void G_BuildTiccmd (ticcmd_t* cmd)
 	sendpause = false; 
 	cmd->buttons = BT_SPECIAL | BTS_PAUSE; 
     } 
- 
-    if (sendsave) 
-    { 
-	sendsave = false; 
-	cmd->buttons = BT_SPECIAL | BTS_SAVEGAME | (savegameslot<<BTS_SAVESHIFT); 
-    } 
 } 
  
 
@@ -472,7 +452,7 @@ void G_DoLoadLevel (void)
     memset (gamekeydown, 0, sizeof(gamekeydown)); 
     joyxmove = joyymove = 0; 
     mousex = mousey = 0; 
-    sendpause = sendsave = paused = false; 
+    sendpause = paused = false; 
     memset (mousebuttons, 0, sizeof(mousebuttons)); 
     memset (joybuttons, 0, sizeof(joybuttons)); 
 } 
@@ -582,14 +562,6 @@ void G_Ticker (void)
 	  case ga_newgame: 
 	    G_DoNewGame (); 
 	    break; 
-	  case ga_loadgame: 
-	    G_DoLoadGame (); 
-	    break; 
-	  case ga_savegame: 
-	    G_DoSaveGame (); 
-	    break; 
-	  case ga_playdemo: 
-	    break; 
 	  case ga_completed: 
 	    G_DoCompleted (); 
 	    break; 
@@ -643,14 +615,6 @@ void G_Ticker (void)
 		{ 
 		  case BTS_PAUSE: 
 		    paused ^= 1; 
-		    break; 
-					 
-		  case BTS_SAVEGAME: 
-		    if (!savedescription[0]) 
-			strcpy (savedescription, "NET GAME"); 
-		    savegameslot =  
-			(players[i].cmd.buttons & BTS_SAVEMASK)>>BTS_SAVESHIFT; 
-		    gameaction = ga_savegame; 
 		    break; 
 		} 
 	    } 
@@ -1041,146 +1005,6 @@ void G_DoWorldDone (void)
 } 
  
 
-
-//
-// G_InitFromSavegame
-// Can be called by the startup code or the menu task. 
-//
-extern boolean setsizeneeded;
-void R_ExecuteSetViewSize (void);
-
-char	savename[256];
-
-void G_LoadGame (char* name) 
-{ 
-    strcpy (savename, name); 
-    gameaction = ga_loadgame; 
-} 
- 
-#define VERSIONSIZE		16 
-
-
-void G_DoLoadGame (void) 
-{ 
-    int		length; 
-    int		i; 
-    int		a,b,c; 
-    char	vcheck[VERSIONSIZE]; 
-	 
-    gameaction = ga_nothing; 
-	 
-    length = M_ReadFile (savename, &savebuffer); 
-    save_p = savebuffer + SAVESTRINGSIZE;
-    
-    // skip the description field 
-    memset (vcheck,0,sizeof(vcheck)); 
-    sprintf (vcheck,"version %i",VERSION); 
-    if (strcmp (save_p, vcheck)) 
-	return;				// bad version 
-    save_p += VERSIONSIZE; 
-			 
-    gameskill = *save_p++; 
-    gameepisode = *save_p++; 
-    gamemap = *save_p++; 
-    for (i=0 ; i<MAXPLAYERS ; i++) 
-	playeringame[i] = *save_p++; 
-
-    // load a base level 
-    G_InitNew (gameskill, gameepisode, gamemap); 
- 
-    // get the times 
-    a = *save_p++; 
-    b = *save_p++; 
-    c = *save_p++; 
-    leveltime = (a<<16) + (b<<8) + c; 
-	 
-    // dearchive all the modifications
-    P_UnArchivePlayers (); 
-    P_UnArchiveWorld (); 
-    P_UnArchiveThinkers (); 
-    P_UnArchiveSpecials (); 
- 
-    if (*save_p != 0x1d) 
-	I_Error ("Bad savegame");
-    
-    // done 
-    Z_Free (savebuffer); 
- 
-    if (setsizeneeded)
-	R_ExecuteSetViewSize ();
-    
-    // draw the pattern into the back screen
-    R_FillBackScreen ();   
-} 
- 
-
-//
-// G_SaveGame
-// Called by the menu task.
-// Description is a 24 byte text string 
-//
-void
-G_SaveGame
-( int	slot,
-  char*	description ) 
-{ 
-    savegameslot = slot; 
-    strcpy (savedescription, description); 
-    sendsave = true; 
-} 
- 
-void G_DoSaveGame (void) 
-{ 
-    char	name[100]; 
-    char	name2[VERSIONSIZE]; 
-    char*	description; 
-    int		length; 
-    int		i; 
-	
-    if (M_CheckParm("-cdrom"))
-	sprintf(name,"c:\\doomdata\\"SAVEGAMENAME"%d.dsg",savegameslot);
-    else
-	sprintf (name,SAVEGAMENAME"%d.dsg",savegameslot); 
-    description = savedescription; 
-	 
-    save_p = savebuffer = screens[1]+0x4000; 
-	 
-    memcpy (save_p, description, SAVESTRINGSIZE); 
-    save_p += SAVESTRINGSIZE; 
-    memset (name2,0,sizeof(name2)); 
-    sprintf (name2,"version %i",VERSION); 
-    memcpy (save_p, name2, VERSIONSIZE); 
-    save_p += VERSIONSIZE; 
-	 
-    *save_p++ = gameskill; 
-    *save_p++ = gameepisode; 
-    *save_p++ = gamemap; 
-    for (i=0 ; i<MAXPLAYERS ; i++) 
-	*save_p++ = playeringame[i]; 
-    *save_p++ = leveltime>>16; 
-    *save_p++ = leveltime>>8; 
-    *save_p++ = leveltime; 
- 
-    P_ArchivePlayers (); 
-    P_ArchiveWorld (); 
-    P_ArchiveThinkers (); 
-    P_ArchiveSpecials (); 
-	 
-    *save_p++ = 0x1d;		// consistancy marker 
-	 
-    length = save_p - savebuffer; 
-    if (length > SAVEGAMESIZE) 
-	I_Error ("Savegame buffer overrun"); 
-    M_WriteFile (name, savebuffer, length); 
-    gameaction = ga_nothing; 
-    savedescription[0] = 0;		 
-	 
-    players[consoleplayer].message = GGSAVED; 
-
-    // draw the pattern into the back screen
-    R_FillBackScreen ();	
-} 
- 
 
 //
 // G_InitNew

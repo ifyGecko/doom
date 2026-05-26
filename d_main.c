@@ -371,6 +371,18 @@ void D_DoomLoop (void)
 	gametic++;
 	maketic++;
 
+	// Rate-limit to TICRATE tics per second so the game doesn't run at
+	// full CPU speed.  The original SDL backend was throttled by
+	// SDL_RENDERER_PRESENTVSYNC; the net backend has no such governor.
+	{
+	    int now = I_GetTime();
+	    int target = gametic;
+	    if (target > now)
+		usleep((target - now) * 1000000 / TICRATE);
+	    else if (target == now)
+		sched_yield();
+	}
+
 	// Update display, next frame, with current state.
 	D_Display ();
     }

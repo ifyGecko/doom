@@ -108,9 +108,6 @@ extern  boolean	paused;		// Game Pause?
 
 extern  boolean		viewactive;
 
-extern  boolean		nodrawers;
-extern  boolean		noblit;
-
 extern	int		viewwindowx;
 extern	int		viewwindowy;
 extern	int		viewheight;
@@ -199,7 +196,6 @@ extern  int		maxammo[NUMAMMO];
 
 // File handling stuff.
 extern	char		basedefault[1024];
-extern  FILE*		debugfile;
 
 // if true, load all graphics at level load
 extern  boolean         precache;
@@ -210,9 +206,6 @@ extern  boolean         precache;
 extern  gamestate_t     wipegamestate;
 
 extern  int             mouseSensitivity;
-//?
-// debug flag to cancel adaptiveness
-extern  boolean         singletics;	
 
 extern  int             bodyqueslot;
 

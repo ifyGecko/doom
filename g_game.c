@@ -88,9 +88,7 @@ boolean         paused;
 boolean         sendpause;             	// send a pause event next tic 
 boolean         usergame;               // ok to save / end game 
  
-boolean         nodrawers;              // for comparative timing purposes 
-boolean         noblit;                 // for comparative timing purposes 
-int             starttime;          	// for comparative timing purposes  	 
+
  
 boolean         viewactive; 
  
@@ -179,22 +177,7 @@ boolean*	joybuttons = &joyarray[1];		// allow [-1]
 
 mobj_t*		bodyque[BODYQUESIZE]; 
 int		bodyqueslot; 
- 
-void*		statcopy;				// for statistics driver
- 
- 
- 
-int G_CmdChecksum (ticcmd_t* cmd) 
-{ 
-    int		i;
-    int		sum = 0; 
-	 
-    for (i=0 ; i< sizeof(*cmd)/4 - 1 ; i++) 
-	sum += ((int *)cmd)[i]; 
-		 
-    return sum; 
-} 
- 
+
 
 //
 // G_BuildTiccmd
@@ -444,7 +427,6 @@ void G_DoLoadLevel (void)
 		 
     P_SetupLevel (gameepisode, gamemap, 0, gameskill);    
     displayplayer = consoleplayer;		// view the guy you are playing    
-    starttime = I_GetTime (); 
     gameaction = ga_nothing; 
     Z_CheckHeap ();
     
@@ -960,9 +942,6 @@ void G_DoCompleted (void)
     viewactive = false; 
     automapactive = false; 
  
-    if (statcopy)
-	memcpy (statcopy, &wminfo, sizeof(wminfo));
-	
     WI_Start (&wminfo); 
 } 
 

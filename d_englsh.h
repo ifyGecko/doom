@@ -31,7 +31,6 @@
 // D_Main.C
 //
 #define D_DEVSTR	"Development mode ON.\n"
-#define D_CDROM	"CD-ROM Version: default.cfg from c:\\doomdata\n"
 
 //
 //	M_Menu.C
@@ -39,12 +38,6 @@
 #define PRESSKEY 	"press a key."
 #define PRESSYN 	"press y or n."
 #define QUITMSG	"are you sure you want to\nquit this great game?"
-#define LOADNET 	"you can't do load while in a net game!\n\n"PRESSKEY
-#define QLOADNET	"you can't quickload during a netgame!\n\n"PRESSKEY
-
-#define NEWGAME	\
-"you can't start a new game\n"\
-"while in a network game.\n\n"PRESSKEY
 
 #define NIGHTMARE	\
 "are you sure? this skill level\n"\
@@ -56,7 +49,6 @@
 
 #define MSGOFF	"Messages OFF"
 #define MSGON		"Messages ON"
-#define NETEND	"you can't end a netgame!\n\n"PRESSKEY
 #define ENDGAME	"are you sure you want to end the game?\n\n"PRESSYN
 
 #define DOSY		"(press y to quit)"
@@ -288,13 +280,7 @@
 #define HUSTR_CHATMACRO9	"Yes"
 #define HUSTR_CHATMACRO0	"No"
 
-#define HUSTR_TALKTOSELF1	"You mumble to yourself"
-#define HUSTR_TALKTOSELF2	"Who's there?"
-#define HUSTR_TALKTOSELF3	"You scare yourself"
-#define HUSTR_TALKTOSELF4	"You start to rave"
-#define HUSTR_TALKTOSELF5	"You've lost it..."
 
-#define HUSTR_MESSAGESENT	"[Message Sent]"
 
 // The following should NOT be changed unless it seems
 // just AWFULLY necessary
@@ -326,8 +312,6 @@
 //	ST_stuff.C
 //
 
-#define STSTR_MUS		"Music Change"
-#define STSTR_NOMUS		"IMPOSSIBLE SELECTION"
 #define STSTR_DQDON		"Degreelessness Mode On"
 #define STSTR_DQDOFF	"Degreelessness Mode Off"
 

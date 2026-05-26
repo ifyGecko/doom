@@ -70,7 +70,6 @@ enum {
 #define DOOMNET_EV_KEYDOWN   0u
 #define DOOMNET_EV_KEYUP     1u
 #define DOOMNET_EV_MOUSE     2u
-#define DOOMNET_EV_JOYSTICK  3u
 
 // MSG_HELLO payload (client -> server):
 //

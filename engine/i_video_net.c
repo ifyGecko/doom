@@ -458,7 +458,6 @@ void I_StartTic(void)
                     case DOOMNET_EV_KEYDOWN:  e.type = ev_keydown;  break;
                     case DOOMNET_EV_KEYUP:    e.type = ev_keyup;    break;
                     case DOOMNET_EV_MOUSE:    e.type = ev_mouse;    break;
-                    case DOOMNET_EV_JOYSTICK: e.type = ev_joystick; break;
                     default: continue;
                   }
                   e.data1 = d1; e.data2 = d2; e.data3 = d3;

@@ -10,9 +10,9 @@
 
 #include <SDL2/SDL.h>
 
-#include "../doomdef.h"          // KEY_* constants
-#include "../net/wire.h"
-#include "../net/framing.h"
+#include "doomdef.h"             // KEY_* constants
+#include "wire.h"
+#include "framing.h"
 
 static int lastmousex = 0;
 static int lastmousey = 0;

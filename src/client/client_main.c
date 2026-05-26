@@ -21,8 +21,8 @@
 
 #include "client_video.h"
 #include "client_input.h"
-#include "../net/wire.h"
-#include "../net/framing.h"
+#include "wire.h"
+#include "framing.h"
 
 
 static void usage(const char *prog)

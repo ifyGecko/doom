@@ -37,94 +37,130 @@ add_project_arguments(
 sdl2_dep = dependency('sdl2')
 m_dep    = cc.find_library('m', required : false)
 
-# Shared framing/protocol code used by both binaries.
-net_sources = files(
-  'net/framing.c',
+# ---- include directories ---------------------------------------------------
+#
+# src/common  : wire protocol + framing, shared by both binaries.
+# src/engine  : headless game engine (original DOOM sources + net transport).
+# src/client  : SDL2 front-end (window, input capture, frame display).
+#
+# The client also reads src/engine headers for KEY_* constants in doomdef.h,
+# which are part of the wire-level input vocabulary.
+#
+common_inc = include_directories('src/common')
+engine_inc = include_directories('src/engine')
+client_inc = include_directories('src/client')
+
+# ---- common ----------------------------------------------------------------
+#
+# Length-prefixed framing layer + wire format definitions.
+#
+common_sources = files(
+  'src/common/framing.c',
 )
 
-# ---- doom-engine ----------------------------------------------------------
+# ---- doom-engine -----------------------------------------------------------
 #
-# Headless game engine. Replaces i_video.c (SDL) with engine/i_video_net.c
-# (TCP). All other DOOM .c files remain unchanged.
+# Headless game engine. Replaces the original SDL i_video.c with
+# src/engine/i_video_net.c, which streams rendered frames over TCP and
+# receives input events. All other DOOM .c files are unmodified.
 #
 engine_sources = files(
-  'doomdef.c',
-  'doomstat.c',
-  'dstrings.c',
-  'i_system.c',
-  'engine/i_video_net.c',
-  'tables.c',
-  'f_finale.c',
-  'f_wipe.c',
-  'd_main.c',
-  'd_items.c',
-  'g_game.c',
-  'm_menu.c',
-  'm_misc.c',
-  'm_argv.c',
-  'm_bbox.c',
-  'm_fixed.c',
-  'm_swap.c',
-  'm_cheat.c',
-  'm_random.c',
-  'am_map.c',
-  'p_ceilng.c',
-  'p_doors.c',
-  'p_enemy.c',
-  'p_floor.c',
-  'p_inter.c',
-  'p_lights.c',
-  'p_map.c',
-  'p_maputl.c',
-  'p_plats.c',
-  'p_pspr.c',
-  'p_setup.c',
-  'p_sight.c',
-  'p_spec.c',
-  'p_switch.c',
-  'p_mobj.c',
-  'p_telept.c',
-  'p_tick.c',
-  'p_user.c',
-  'r_bsp.c',
-  'r_data.c',
-  'r_draw.c',
-  'r_main.c',
-  'r_plane.c',
-  'r_segs.c',
-  'r_sky.c',
-  'r_things.c',
-  'w_wad.c',
-  'wi_stuff.c',
-  'v_video.c',
-  'st_lib.c',
-  'st_stuff.c',
-  'hu_stuff.c',
-  'hu_lib.c',
-  'z_zone.c',
-  'info.c',
-  'i_main.c',
+  # core / globals
+  'src/engine/doomdef.c',
+  'src/engine/doomstat.c',
+  'src/engine/dstrings.c',
+  'src/engine/info.c',
+  'src/engine/tables.c',
+
+  # system interface (entry + net transport replacing SDL)
+  'src/engine/i_main.c',
+  'src/engine/i_system.c',
+  'src/engine/i_video_net.c',
+
+  # top-level doom driver
+  'src/engine/d_main.c',
+  'src/engine/d_items.c',
+
+  # game / menu / finale
+  'src/engine/g_game.c',
+  'src/engine/m_menu.c',
+  'src/engine/f_finale.c',
+  'src/engine/f_wipe.c',
+
+  # misc / math utilities
+  'src/engine/m_argv.c',
+  'src/engine/m_bbox.c',
+  'src/engine/m_cheat.c',
+  'src/engine/m_fixed.c',
+  'src/engine/m_misc.c',
+  'src/engine/m_random.c',
+  'src/engine/m_swap.c',
+
+  # play simulation
+  'src/engine/p_ceilng.c',
+  'src/engine/p_doors.c',
+  'src/engine/p_enemy.c',
+  'src/engine/p_floor.c',
+  'src/engine/p_inter.c',
+  'src/engine/p_lights.c',
+  'src/engine/p_map.c',
+  'src/engine/p_maputl.c',
+  'src/engine/p_mobj.c',
+  'src/engine/p_plats.c',
+  'src/engine/p_pspr.c',
+  'src/engine/p_setup.c',
+  'src/engine/p_sight.c',
+  'src/engine/p_spec.c',
+  'src/engine/p_switch.c',
+  'src/engine/p_telept.c',
+  'src/engine/p_tick.c',
+  'src/engine/p_user.c',
+
+  # renderer
+  'src/engine/r_bsp.c',
+  'src/engine/r_data.c',
+  'src/engine/r_draw.c',
+  'src/engine/r_main.c',
+  'src/engine/r_plane.c',
+  'src/engine/r_segs.c',
+  'src/engine/r_sky.c',
+  'src/engine/r_things.c',
+
+  # automap / HUD / status bar / intermission
+  'src/engine/am_map.c',
+  'src/engine/hu_lib.c',
+  'src/engine/hu_stuff.c',
+  'src/engine/st_lib.c',
+  'src/engine/st_stuff.c',
+  'src/engine/wi_stuff.c',
+
+  # video / wad / memory
+  'src/engine/v_video.c',
+  'src/engine/w_wad.c',
+  'src/engine/z_zone.c',
 )
 
 executable('doom-engine',
-  engine_sources + net_sources,
-  dependencies : [m_dep],
-  install : false,
+  engine_sources + common_sources,
+  include_directories : [engine_inc, common_inc],
+  dependencies        : [m_dep],
+  install             : false,
 )
 
-# ---- doom-client ----------------------------------------------------------
+# ---- doom-client -----------------------------------------------------------
 #
-# Thin SDL2 front-end. Opens a window, sends input, displays received frames.
-# No DOOM game logic.
+# Thin SDL2 front-end. Opens a window, captures input, displays received
+# frames. No DOOM game logic.
 #
 client_sources = files(
-  'client/client_main.c',
-  'client/client_video.c',
-  'client/client_input.c',
+  'src/client/client_main.c',
+  'src/client/client_video.c',
+  'src/client/client_input.c',
 )
 
 executable('doom-client',
-  client_sources + net_sources,
-  dependencies : [sdl2_dep],
-  install : false,
+  client_sources + common_sources,
+  include_directories : [client_inc, common_inc, engine_inc],
+  dependencies        : [sdl2_dep],
+  install             : false,
 )

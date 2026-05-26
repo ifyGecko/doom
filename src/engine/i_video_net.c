@@ -45,8 +45,8 @@
 #include "d_main.h"
 #include "doomdef.h"
 
-#include "../net/wire.h"
-#include "../net/framing.h"
+#include "wire.h"
+#include "framing.h"
 
 
 // ---- session state ---------------------------------------------------------

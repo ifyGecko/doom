@@ -127,6 +127,73 @@ static void die(const char *what)
     exit(1);
 }
 
+// Append client-supplied CLI args (received via MSG_ARGS) to the global
+// myargv/myargc so D_DoomMain's existing M_CheckParm("-warp")/("-skill")
+// lookups find them with no further changes to the game code.
+//
+// Payload layout (see wire.h MSG_ARGS):
+//   u16 argc
+//   for each i: u16 len; bytes[len]   (string is NOT null-terminated on wire)
+//
+// Strings are sanity-bounded and copied into freshly-allocated null-terminated
+// buffers; the new myargv array is malloc'd and replaces the original (which
+// came from main()'s stack-resident argv).
+static void inject_args(const uint8_t *payload, uint32_t len)
+{
+    uint32_t  off = 0;
+    uint16_t  add_argc;
+    char    **new_argv;
+    int       i;
+
+    if (len < 2) {
+        fprintf(stderr, "[engine] MSG_ARGS too short\n");
+        cleanup_temp(); exit(1);
+    }
+    add_argc = (uint16_t)(payload[0] | (payload[1] << 8));
+    off = 2;
+
+    if (add_argc == 0) return;
+    // Hard cap to keep the protocol from forcing the engine to allocate
+    // unbounded memory. Way more than enough for "-skill N -warp E M".
+    if (add_argc > 32) {
+        fprintf(stderr, "[engine] MSG_ARGS argc=%u too large\n", add_argc);
+        cleanup_temp(); exit(1);
+    }
+
+    new_argv = (char **)malloc(sizeof(char *) * (myargc + add_argc));
+    if (!new_argv) die("malloc argv");
+    for (i = 0; i < myargc; i++) new_argv[i] = myargv[i];
+
+    for (i = 0; i < add_argc; i++) {
+        uint16_t slen;
+        char    *s;
+
+        if (off + 2 > len) {
+            fprintf(stderr, "[engine] MSG_ARGS truncated header\n");
+            cleanup_temp(); exit(1);
+        }
+        slen = (uint16_t)(payload[off] | (payload[off + 1] << 8));
+        off += 2;
+        if (slen > 64 || off + slen > len) {
+            fprintf(stderr, "[engine] MSG_ARGS bad string len\n");
+            cleanup_temp(); exit(1);
+        }
+
+        s = (char *)malloc((size_t)slen + 1);
+        if (!s) die("malloc arg str");
+        memcpy(s, payload + off, slen);
+        s[slen] = 0;
+        off += slen;
+
+        new_argv[myargc + i] = s;
+    }
+
+    myargv = new_argv;
+    myargc += add_argc;
+
+    fprintf(stderr, "[engine] received %u client arg(s)\n", (unsigned)add_argc);
+}
+
 
 // ---- bootstrap (runs BEFORE D_DoomMain) -----------------------------------
 
@@ -254,6 +321,13 @@ void I_NetBootstrap(void)
             while (received < wad_size) {
                 r = net_recv_blocking(client_fd, buf, sizeof buf, &type, &len);
                 if (r != 1) { fprintf(stderr, "[engine] WAD upload aborted\n"); exit(1); }
+                if (type == MSG_ARGS) {
+                    // Client may interleave its CLI args (e.g. -warp, -skill)
+                    // anywhere between HELLO_ACK and WAD_DONE. Process and
+                    // continue receiving WAD data.
+                    inject_args(buf, len);
+                    continue;
+                }
                 if (type == MSG_WAD_DONE) {
                     // Allow client to signal completion early; we'll validate below.
                     break;

@@ -29,11 +29,15 @@ static void usage(const char *prog)
 {
     fprintf(stderr,
         "Usage: %s --wad PATH [--host HOST] [--port N] [--multiply N] [--grabmouse]\n"
+        "       [--skill N] [--warp E M | --warp M]\n"
         "  --wad PATH      Local WAD file to upload to the engine\n"
         "  --host HOST     Engine host (default 127.0.0.1)\n"
         "  --port N        Engine port (default %d)\n"
         "  --multiply N    Window scale factor (default 3)\n"
-        "  --grabmouse     Capture the mouse for relative motion\n",
+        "  --grabmouse     Capture the mouse for relative motion\n"
+        "  --skill N       Start at skill 1..5 (1=baby, 5=nightmare)\n"
+        "  --warp E M      Warp to episode E map M (DOOM 1 / Ultimate / Registered)\n"
+        "  --warp M        Warp to map M (DOOM 2 / commercial)\n",
         prog, DOOMNET_DEFAULT_PORT);
 }
 
@@ -210,6 +214,60 @@ static int upload_wad(int fd, const char *path, uint32_t total)
 }
 
 
+// Send -warp / -skill CLI flags to the engine as a MSG_ARGS message. Each arg
+// becomes a separate string the engine appends to its argv, so the unchanged
+// D_DoomMain code that already looks for "-warp" / "-skill" via M_CheckParm
+// picks them up. No-op (returns 0 without sending anything) when neither
+// flag was supplied on the client command line.
+static int send_args(int fd,
+                     const char *skill,
+                     const char *warp_a,
+                     const char *warp_b)
+{
+    uint8_t  buf[256];
+    size_t   off = 2;          // reserve space for u16 argc at [0..1]
+    uint16_t argc = 0;
+
+    // Inline helper: append a length-prefixed string to buf and bump argc.
+    // We use a do/while so the macro is a single statement.
+    #define APPEND_STR(s) do {                                  \
+        size_t _len = strlen(s);                                \
+        if (_len > 60 || off + 2 + _len > sizeof buf) {         \
+            fprintf(stderr, "send_args: arg too long\n");       \
+            return -1;                                          \
+        }                                                       \
+        buf[off++] = (uint8_t)_len;                             \
+        buf[off++] = (uint8_t)(_len >> 8);                      \
+        memcpy(buf + off, (s), _len);                           \
+        off += _len;                                            \
+        argc++;                                                 \
+    } while (0)
+
+    if (skill) {
+        APPEND_STR("-skill");
+        APPEND_STR(skill);
+    }
+    if (warp_a) {
+        APPEND_STR("-warp");
+        APPEND_STR(warp_a);
+        if (warp_b) APPEND_STR(warp_b);
+    }
+
+    #undef APPEND_STR
+
+    if (argc == 0) return 0;
+
+    buf[0] = (uint8_t)argc;
+    buf[1] = (uint8_t)(argc >> 8);
+
+    if (net_send(fd, MSG_ARGS, buf, (uint32_t)off) < 0) {
+        fprintf(stderr, "send MSG_ARGS: %s\n", strerror(errno));
+        return -1;
+    }
+    return 0;
+}
+
+
 static int await_ready(int fd)
 {
     uint8_t  buf[64];
@@ -231,6 +289,9 @@ int main(int argc, char **argv)
     const char *wad_path   = NULL;
     int         multiply   = 3;
     int         grab_mouse = 0;
+    const char *skill      = NULL;     // user-supplied "-skill" value, or NULL
+    const char *warp_a     = NULL;     // first "-warp" value (map or episode)
+    const char *warp_b     = NULL;     // optional second "-warp" value (map)
     int         fd;
     struct stat st;
     uint32_t    wad_size;
@@ -242,6 +303,16 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--wad") && i + 1 < argc) { wad_path = argv[++i]; }
         else if (!strcmp(argv[i], "--multiply") && i + 1 < argc) { multiply = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--grabmouse")) { grab_mouse = 1; }
+        else if (!strcmp(argv[i], "--skill") && i + 1 < argc) { skill = argv[++i]; }
+        else if (!strcmp(argv[i], "--warp")  && i + 1 < argc) {
+            // Accept either "--warp M" (commercial) or "--warp E M" (others).
+            // The engine decides which form is valid based on its gamemode;
+            // we just forward the values verbatim.
+            warp_a = argv[++i];
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                warp_b = argv[++i];
+            }
+        }
         else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
             usage(argv[0]); return 0;
         } else {
@@ -265,9 +336,10 @@ int main(int argc, char **argv)
     fd = tcp_connect(host, port);
     if (fd < 0) return 1;
 
-    if (do_hello(fd, wad_path, wad_size) < 0) { close(fd); return 1; }
-    if (upload_wad(fd, wad_path, wad_size) < 0) { close(fd); return 1; }
-    if (await_ready(fd) < 0)                  { close(fd); return 1; }
+    if (do_hello(fd, wad_path, wad_size) < 0)            { close(fd); return 1; }
+    if (send_args(fd, skill, warp_a, warp_b) < 0)        { close(fd); return 1; }
+    if (upload_wad(fd, wad_path, wad_size) < 0)          { close(fd); return 1; }
+    if (await_ready(fd) < 0)                             { close(fd); return 1; }
     fprintf(stderr, "[client] engine ready, opening window\n");
 
     if (client_video_init(DOOMNET_SCREEN_W, DOOMNET_SCREEN_H, multiply, grab_mouse) < 0) {

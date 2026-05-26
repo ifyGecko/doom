@@ -289,36 +289,43 @@ int main(int argc, char **argv)
             // 1. SDL input -> wire
             if (client_input_poll(fd) < 0) { running = 0; break; }
 
-            // 2. wire -> render
-            for (;;) {
-                uint8_t        type;
-                uint32_t       len;
-                const uint8_t *payload;
-                int            r = net_try_recv(fd, &rx, &type, &len, &payload);
-                if (r == 0) break;
-                if (r < 0) {
-                    fprintf(stderr, "[client] engine disconnected\n");
-                    running = 0; break;
+            // 2. wire -> render. Process at most one full frame per outer
+            // iteration so SDL polling stays responsive even if frames are
+            // backed up in the kernel buffer.
+            {
+                int rendered = 0;
+                while (!rendered) {
+                    uint8_t        type;
+                    uint32_t       len;
+                    const uint8_t *payload;
+                    int            r = net_try_recv(fd, &rx, &type, &len, &payload);
+                    if (r == 0) break;
+                    if (r < 0) {
+                        fprintf(stderr, "[client] engine disconnected\n");
+                        running = 0; break;
+                    }
+                    switch (type) {
+                      case MSG_PALETTE:
+                        if (len >= DOOMNET_PALETTE_BYTES)
+                            client_video_set_palette(payload);
+                        break;
+                      case MSG_FRAME:
+                        if (len >= 1 + DOOMNET_FRAME_BYTES) {
+                            client_video_present(payload + 1);
+                            rendered = 1;
+                        }
+                        break;
+                      case MSG_BYE_S:
+                        fprintf(stderr, "[client] engine said BYE\n");
+                        running = 0; break;
+                      case MSG_PONG:
+                        /* not yet used */
+                        break;
+                      default:
+                        break;
+                    }
+                    if (!running) break;
                 }
-                switch (type) {
-                  case MSG_PALETTE:
-                    if (len >= DOOMNET_PALETTE_BYTES)
-                        client_video_set_palette(payload);
-                    break;
-                  case MSG_FRAME:
-                    if (len >= 1 + DOOMNET_FRAME_BYTES)
-                        client_video_present(payload + 1);
-                    break;
-                  case MSG_BYE_S:
-                    fprintf(stderr, "[client] engine said BYE\n");
-                    running = 0; break;
-                  case MSG_PONG:
-                    /* not yet used */
-                    break;
-                  default:
-                    break;
-                }
-                if (!running) break;
             }
             if (!running) break;
 

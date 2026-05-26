@@ -436,13 +436,24 @@ void I_SetPalette(byte *palette_in)
 void I_FinishUpdate(void)
 {
     static int lasttic;
+    static int last_frame_tic = -1;
+    int        now;
     uint8_t    flags = 0;
 
     if (!initialized) return;
 
+    // D_DoomLoop spins as fast as the CPU allows and calls I_FinishUpdate
+    // every iteration. The original SDL backend was rate-limited by
+    // SDL_RENDERER_PRESENTVSYNC; over the network we have no such governor.
+    // Cap frame output to the game's native 35 Hz so we don't (a) saturate
+    // the link with thousands of duplicate frames per second and (b) lock
+    // the client in its receive loop and prevent it from polling input.
+    now = I_GetTime();
+    if (now == last_frame_tic) return;
+    last_frame_tic = now;
+
     // -devparm tic dots, same as original.
     if (devparm) {
-        int now  = I_GetTime();
         int tics = now - lasttic;
         int i;
         lasttic = now;

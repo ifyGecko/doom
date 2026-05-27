@@ -513,26 +513,12 @@ void IdentifyVersion (void)
     sprintf(tntwad, "%s/tnt.wad", doomwaddir);
 
 
-    // French stuff.
-    doom2fwad = malloc(strlen(doomwaddir)+1+10+1);
-    sprintf(doom2fwad, "%s/doom2f.wad", doomwaddir);
-
     home = getenv("HOME");
     if (!home)
       I_Error("Please set $HOME to your home directory");
     sprintf(basedefault, "%s/.doomrc", home);
 #endif
 
-    if ( !access (doom2fwad,R_OK) )
-    {
-	gamemode = commercial;
-	// C'est ridicule!
-	// Let's handle languages in config files, okay?
-	language = french;
-	printf("French version\n");
-	D_AddFile (doom2fwad);
-	return;
-    }
 
     if ( !access (doom2wad,R_OK) )
     {

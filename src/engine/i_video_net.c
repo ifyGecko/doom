@@ -51,8 +51,18 @@
 
 // ---- session state ---------------------------------------------------------
 
-static int      client_fd     = -1;     // accepted client socket
-static int      initialized   = 0;      // set by I_InitGraphics
+static int      client_fd       = -1;   // accepted client socket
+static int      report_pipe_wfd = -1;   // child->supervisor pipe; closed after
+                                        // we've reported our tempdir
+static int      initialized     = 0;    // set by I_InitGraphics
+
+// Called by the supervisor (i_supervisor.c) before I_NetBootstrap to hand in
+// the already-accepted client fd and the write end of the report pipe.
+void I_NetSetSessionFds(int fd, int report_wfd)
+{
+    client_fd       = fd;
+    report_pipe_wfd = report_wfd;
+}
 
 // Engine-side palette, post-gamma, in B,G,R,A order ready to ship.
 static uint8_t  cur_palette[DOOMNET_PALETTE_BYTES];
@@ -66,6 +76,7 @@ static net_rx_t rx = { rx_storage, sizeof rx_storage, 0 };
 // Temp directory & WAD path used for cleanup at exit.
 static char     temp_dir[256]  = {0};
 static char     temp_wad[512]  = {0};
+static char     temp_config[512] = {0};  // set iff MSG_CONFIG was received
 
 
 // ---- helpers ---------------------------------------------------------------
@@ -88,8 +99,9 @@ static const char *parse_str_arg(const char *flag, const char *fallback)
 
 static void cleanup_temp(void)
 {
-    if (temp_wad[0]) { unlink(temp_wad); temp_wad[0] = 0; }
-    if (temp_dir[0]) { rmdir(temp_dir);  temp_dir[0] = 0; }
+    if (temp_config[0]) { unlink(temp_config); temp_config[0] = 0; }
+    if (temp_wad[0])    { unlink(temp_wad);    temp_wad[0]    = 0; }
+    if (temp_dir[0])    { rmdir(temp_dir);     temp_dir[0]    = 0; }
 }
 
 // strip "/foo/bar/" from a name; clamp to alnum + '.' + '_' + '-' so
@@ -194,17 +206,59 @@ static void inject_args(const uint8_t *payload, uint32_t len)
     fprintf(stderr, "[engine] received %u client arg(s)\n", (unsigned)add_argc);
 }
 
+// Write a MSG_CONFIG payload to <temp_dir>/default.cfg and append
+// "-config <path>" to myargv so the existing M_LoadDefaults code finds it.
+// Safe to call only after temp_dir has been created.
+static void inject_config(const uint8_t *payload, uint32_t len)
+{
+    FILE    *fp;
+    char    *arg_flag;
+    char    *arg_path;
+    char   **new_argv;
+    int      i;
+
+    if (len > DOOMNET_CONFIG_MAX) {
+        fprintf(stderr, "[engine] MSG_CONFIG too large (%u bytes)\n", (unsigned)len);
+        cleanup_temp(); exit(1);
+    }
+    if (!temp_dir[0]) {
+        fprintf(stderr, "[engine] MSG_CONFIG before temp dir was created\n");
+        cleanup_temp(); exit(1);
+    }
+    if (temp_config[0]) {
+        fprintf(stderr, "[engine] duplicate MSG_CONFIG ignored\n");
+        return;
+    }
+
+    snprintf(temp_config, sizeof temp_config, "%s/default.cfg", temp_dir);
+    fp = fopen(temp_config, "wb");
+    if (!fp) { temp_config[0] = 0; die("fopen tmp config"); }
+    if (len && fwrite(payload, 1, len, fp) != len) {
+        fclose(fp); die("fwrite tmp config");
+    }
+    fclose(fp);
+
+    arg_flag = strdup("-config");
+    arg_path = strdup(temp_config);
+    if (!arg_flag || !arg_path) die("strdup config arg");
+
+    new_argv = (char **)malloc(sizeof(char *) * (myargc + 2));
+    if (!new_argv) die("malloc argv (config)");
+    for (i = 0; i < myargc; i++) new_argv[i] = myargv[i];
+    new_argv[myargc]     = arg_flag;
+    new_argv[myargc + 1] = arg_path;
+    myargv  = new_argv;
+    myargc += 2;
+
+    fprintf(stderr, "[engine] received config (%u bytes) -> %s\n",
+            (unsigned)len, temp_config);
+}
+
 
 // ---- bootstrap (runs BEFORE D_DoomMain) -----------------------------------
 
 void I_NetBootstrap(void)
 {
-    int                 listen_fd;
-    int                 port;
-    int                 one = 1;
-    const char         *bind_addr;
-    struct sockaddr_in  addr;
-    socklen_t           addr_len;
     uint8_t             buf[DOOMNET_WAD_CHUNK + 64];
     uint8_t             type;
     uint32_t            len;
@@ -214,34 +268,14 @@ void I_NetBootstrap(void)
     // signal that prevents I_Quit from running.
     signal(SIGPIPE, SIG_IGN);
 
-    port      = parse_int_arg("-port", DOOMNET_DEFAULT_PORT);
-    bind_addr = parse_str_arg("-bind", "0.0.0.0");
-
-    // Socket setup ----------------------------------------------------------
-    listen_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (listen_fd < 0) die("socket");
-    setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-
-    memset(&addr, 0, sizeof addr);
-    addr.sin_family = AF_INET;
-    addr.sin_port   = htons((uint16_t)port);
-    if (inet_pton(AF_INET, bind_addr, &addr.sin_addr) != 1) {
-        fprintf(stderr, "I_NetBootstrap: bad -bind address '%s'\n", bind_addr);
+    // The supervisor (i_supervisor.c) is the owner of the listening socket
+    // and accepts each connection on our behalf; it hands us the already-
+    // connected client fd via I_NetSetSessionFds before calling us.
+    if (client_fd < 0) {
+        fprintf(stderr,
+                "I_NetBootstrap: no client fd; was I_NetSetSessionFds called?\n");
         exit(1);
     }
-
-    if (bind(listen_fd, (struct sockaddr *)&addr, sizeof addr) < 0) die("bind");
-    if (listen(listen_fd, 1) < 0) die("listen");
-
-    fprintf(stderr, "[engine] waiting for client on %s:%d ...\n", bind_addr, port);
-
-    addr_len = sizeof addr;
-    client_fd = accept(listen_fd, (struct sockaddr *)&addr, &addr_len);
-    if (client_fd < 0) die("accept");
-    close(listen_fd);
-
-    fprintf(stderr, "[engine] client connected from %s:%d\n",
-            inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
     net_set_nodelay(client_fd);
 
@@ -308,6 +342,21 @@ void I_NetBootstrap(void)
         snprintf(temp_wad, sizeof temp_wad, "%s/%s", temp_dir, wad_basename);
         atexit(cleanup_temp);
 
+        // Report our temp dir to the supervisor so it can rm -rf the path
+        // even if we die by signal before atexit runs. Write then close - the
+        // supervisor uses EOF as the report-complete signal.
+        if (report_pipe_wfd >= 0) {
+            ssize_t to_write = (ssize_t)strlen(temp_dir);
+            ssize_t off      = 0;
+            while (off < to_write) {
+                ssize_t w = write(report_pipe_wfd, temp_dir + off, to_write - off);
+                if (w < 0) { if (errno == EINTR) continue; break; }
+                off += w;
+            }
+            close(report_pipe_wfd);
+            report_pipe_wfd = -1;
+        }
+
         {
             FILE    *fp = fopen(temp_wad, "wb");
             uint32_t received = 0;
@@ -326,6 +375,13 @@ void I_NetBootstrap(void)
                     // anywhere between HELLO_ACK and WAD_DONE. Process and
                     // continue receiving WAD data.
                     inject_args(buf, len);
+                    continue;
+                }
+                if (type == MSG_CONFIG) {
+                    // Optional per-session config blob. Write to the temp dir
+                    // and inject "-config <path>" so the existing
+                    // M_LoadDefaults("-config") lookup picks it up.
+                    inject_config(buf, len);
                     continue;
                 }
                 if (type == MSG_WAD_DONE) {
@@ -413,6 +469,26 @@ void I_InitGraphics(void)
 void I_ShutdownGraphics(void)
 {
     if (client_fd >= 0) {
+        // If the session had a per-user config, ship the (possibly
+        // M_SaveDefaults-updated) version back so the client can persist it.
+        if (temp_config[0]) {
+            FILE *fp = fopen(temp_config, "rb");
+            if (fp) {
+                uint8_t *cfg;
+                long     sz;
+                fseek(fp, 0, SEEK_END);
+                sz = ftell(fp);
+                fseek(fp, 0, SEEK_SET);
+                if (sz > 0 && sz <= (long)DOOMNET_CONFIG_MAX
+                    && (cfg = (uint8_t *)malloc((size_t)sz)) != NULL) {
+                    if (fread(cfg, 1, (size_t)sz, fp) == (size_t)sz) {
+                        net_send(client_fd, MSG_CONFIG_OUT, cfg, (uint32_t)sz);
+                    }
+                    free(cfg);
+                }
+                fclose(fp);
+            }
+        }
         // Best-effort polite BYE.
         net_send(client_fd, MSG_BYE_S, NULL, 0);
         close(client_fd);

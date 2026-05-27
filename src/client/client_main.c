@@ -29,15 +29,19 @@ static void usage(const char *prog)
 {
     fprintf(stderr,
         "Usage: %s --wad PATH [--host HOST] [--port N] [--multiply N] [--grabmouse]\n"
-        "       [--skill N] [--warp E M | --warp M]\n"
-        "  --wad PATH      Local WAD file to upload to the engine\n"
-        "  --host HOST     Engine host (default 127.0.0.1)\n"
-        "  --port N        Engine port (default %d)\n"
-        "  --multiply N    Window scale factor (default 3)\n"
-        "  --grabmouse     Capture the mouse for relative motion\n"
-        "  --skill N       Start at skill 1..5 (1=baby, 5=nightmare)\n"
-        "  --warp E M      Warp to episode E map M (DOOM 1 / Ultimate / Registered)\n"
-        "  --warp M        Warp to map M (DOOM 2 / commercial)\n",
+        "       [--skill N] [--warp E M | --warp M] [--config PATH] [--config-out PATH]\n"
+        "  --wad PATH        Local WAD file to upload to the engine\n"
+        "  --host HOST       Engine host (default 127.0.0.1)\n"
+        "  --port N          Engine port (default %d)\n"
+        "  --multiply N      Window scale factor (default 3)\n"
+        "  --grabmouse       Capture the mouse for relative motion\n"
+        "  --skill N         Start at skill 1..5 (1=baby, 5=nightmare)\n"
+        "  --warp E M        Warp to episode E map M (DOOM 1 / Ultimate / Registered)\n"
+        "  --warp M          Warp to map M (DOOM 2 / commercial)\n"
+        "  --config PATH     Upload this default.cfg to the engine as the\n"
+        "                    session's starting config\n"
+        "  --config-out PATH Write the engine's updated default.cfg back to\n"
+        "                    this path at clean shutdown\n",
         prog, DOOMNET_DEFAULT_PORT);
 }
 
@@ -268,6 +272,47 @@ static int send_args(int fd,
 }
 
 
+// Read the local file at `path` and ship it to the engine as MSG_CONFIG.
+// Sent after MSG_ARGS and before WAD upload; the engine writes it to the
+// per-session temp dir and threads -config <path> through to M_LoadDefaults.
+// Returns 0 on success (or if `path` is NULL), -1 on failure.
+static int send_config(int fd, const char *path)
+{
+    FILE    *fp;
+    uint8_t *buf;
+    long     sz;
+
+    if (!path) return 0;
+
+    fp = fopen(path, "rb");
+    if (!fp) {
+        fprintf(stderr, "fopen %s: %s\n", path, strerror(errno));
+        return -1;
+    }
+    fseek(fp, 0, SEEK_END);
+    sz = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    if (sz < 0 || (uint32_t)sz > DOOMNET_CONFIG_MAX) {
+        fprintf(stderr, "config %s: bad size %ld\n", path, sz);
+        fclose(fp); return -1;
+    }
+    buf = (uint8_t *)malloc((size_t)sz);
+    if (!buf) { fclose(fp); return -1; }
+    if (fread(buf, 1, (size_t)sz, fp) != (size_t)sz) {
+        fprintf(stderr, "config %s: short read\n", path);
+        free(buf); fclose(fp); return -1;
+    }
+    fclose(fp);
+
+    if (net_send(fd, MSG_CONFIG, buf, (uint32_t)sz) < 0) {
+        fprintf(stderr, "send MSG_CONFIG: %s\n", strerror(errno));
+        free(buf); return -1;
+    }
+    free(buf);
+    fprintf(stderr, "[client] uploaded config %s (%ld bytes)\n", path, sz);
+    return 0;
+}
+
 static int await_ready(int fd)
 {
     uint8_t  buf[64];
@@ -292,6 +337,9 @@ int main(int argc, char **argv)
     const char *skill      = NULL;     // user-supplied "-skill" value, or NULL
     const char *warp_a     = NULL;     // first "-warp" value (map or episode)
     const char *warp_b     = NULL;     // optional second "-warp" value (map)
+    const char *config_in  = NULL;     // optional default.cfg to upload
+    const char *config_out = NULL;     // optional path to write engine's
+                                       // updated default.cfg back to
     int         fd;
     struct stat st;
     uint32_t    wad_size;
@@ -304,6 +352,8 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--multiply") && i + 1 < argc) { multiply = atoi(argv[++i]); }
         else if (!strcmp(argv[i], "--grabmouse")) { grab_mouse = 1; }
         else if (!strcmp(argv[i], "--skill") && i + 1 < argc) { skill = argv[++i]; }
+        else if (!strcmp(argv[i], "--config") && i + 1 < argc) { config_in = argv[++i]; }
+        else if (!strcmp(argv[i], "--config-out") && i + 1 < argc) { config_out = argv[++i]; }
         else if (!strcmp(argv[i], "--warp")  && i + 1 < argc) {
             // Accept either "--warp M" (commercial) or "--warp E M" (others).
             // The engine decides which form is valid based on its gamemode;
@@ -338,6 +388,7 @@ int main(int argc, char **argv)
 
     if (do_hello(fd, wad_path, wad_size) < 0)            { close(fd); return 1; }
     if (send_args(fd, skill, warp_a, warp_b) < 0)        { close(fd); return 1; }
+    if (send_config(fd, config_in) < 0)                  { close(fd); return 1; }
     if (upload_wad(fd, wad_path, wad_size) < 0)          { close(fd); return 1; }
     if (await_ready(fd) < 0)                             { close(fd); return 1; }
     fprintf(stderr, "[client] engine ready, opening window\n");
@@ -390,6 +441,24 @@ int main(int argc, char **argv)
                       case MSG_BYE_S:
                         fprintf(stderr, "[client] engine said BYE\n");
                         running = 0; break;
+                      case MSG_CONFIG_OUT:
+                        if (config_out) {
+                            FILE *fp = fopen(config_out, "wb");
+                            if (!fp) {
+                                fprintf(stderr,
+                                    "[client] fopen %s: %s\n",
+                                    config_out, strerror(errno));
+                            } else {
+                                if (len && fwrite(payload, 1, len, fp) != len)
+                                    fprintf(stderr,
+                                        "[client] write %s: short\n", config_out);
+                                fclose(fp);
+                                fprintf(stderr,
+                                    "[client] saved config to %s (%u bytes)\n",
+                                    config_out, (unsigned)len);
+                            }
+                        }
+                        break;
                       case MSG_PONG:
                         /* not yet used */
                         break;

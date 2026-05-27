@@ -31,10 +31,11 @@ rcsid[] = "$Id: i_main.c,v 1.4 1997/02/03 22:45:10 b1 Exp $";
 #include "m_argv.h"
 #include "d_main.h"
 
-// Engine network bootstrap, defined in engine/i_video_net.c. Listens for the
-// remote client, performs the HELLO handshake, downloads the WAD into a temp
-// directory, and sets DOOMWADDIR so the rest of D_DoomMain works unchanged.
-extern void I_NetBootstrap(void);
+// Supervisor entry, defined in engine/i_supervisor.c. Owns the listening
+// socket and fork()s a fresh child per accepted client; each child runs the
+// existing I_NetBootstrap + D_DoomMain in its own address space. This main()
+// itself never reaches game code.
+extern int I_Supervise(int argc, char **argv);
 
 int
 main
@@ -44,9 +45,5 @@ main
     myargc = argc; 
     myargv = argv; 
 
-    I_NetBootstrap();
-
-    D_DoomMain (); 
-
-    return 0;
+    return I_Supervise(argc, argv);
 } 

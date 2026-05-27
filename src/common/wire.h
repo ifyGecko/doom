@@ -50,6 +50,11 @@ enum {
     MSG_INPUT_EVENT = 0x05,  // { u8 ev_type; i32 d1; i32 d2; i32 d3 }
     MSG_PING        = 0x06,  // { u64 client_time_us }
     MSG_BYE         = 0x07,  // empty
+    MSG_CONFIG      = 0x08,  // raw bytes of default.cfg (<= DOOMNET_CONFIG_MAX)
+                             // optional; if sent must arrive after HELLO_ACK
+                             // and before WAD_DONE. Engine writes the bytes
+                             // to its per-session temp dir and points the
+                             // existing -config CLI lookup at the file.
 
     // server -> client
     MSG_HELLO_ACK   = 0x81,  // { u16 proto_ver; u16 screen_w; u16 screen_h }
@@ -59,8 +64,17 @@ enum {
     MSG_FRAME       = 0x85,  // { u8 flags; bytes pixels[FRAME_BYTES] }
     MSG_PONG        = 0x86,  // { u64 client_time_us } - echoed from PING
     MSG_ERROR       = 0x87,  // { u16 code; bytes msg }
-    MSG_BYE_S       = 0x88   // empty
+    MSG_BYE_S       = 0x88,  // empty
+    MSG_CONFIG_OUT  = 0x89   // raw bytes of default.cfg as written by the
+                             // engine at clean shutdown (M_SaveDefaults).
+                             // Sent immediately before MSG_BYE_S so a client
+                             // can persist updated defaults. Omitted if no
+                             // config file ever existed for the session.
 };
+
+// Hard upper bound on a single MSG_CONFIG / MSG_CONFIG_OUT payload. The real
+// default.cfg is well under 8 KiB; we allow some headroom for future keys.
+#define DOOMNET_CONFIG_MAX      (256u * 1024u)
 
 // FRAME flags
 #define DOOMNET_FRAME_FLAG_PALETTE_DIRTY  0x01u

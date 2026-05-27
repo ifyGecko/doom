@@ -79,6 +79,7 @@ engine_sources = files(
 
   # system interface (entry + net transport replacing SDL)
   'src/engine/i_main.c',
+  'src/engine/i_supervisor.c',
   'src/engine/i_system.c',
   'src/engine/i_video_net.c',
 

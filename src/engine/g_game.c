@@ -815,7 +815,6 @@ void G_ExitLevel (void)
     gameaction = ga_completed; 
 } 
 
-// Here's for the german edition.
 void G_SecretExitLevel (void) 
 { 
     // IF NO WOLF3D LEVELS, NO SECRET EXIT!

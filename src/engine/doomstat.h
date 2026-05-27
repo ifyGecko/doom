@@ -67,10 +67,6 @@ extern GameMission_t	gamemission;
 extern  boolean	modifiedgame;
 
 
-// -------------------------------------------
-// Language.
-extern  Language_t   language;
-
 
 // -------------------------------------------
 // Selected skill type, map etc.

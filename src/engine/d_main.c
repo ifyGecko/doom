@@ -477,7 +477,6 @@ void IdentifyVersion (void)
     char*	doomuwad;
     char*	doom2wad;
 
-    char*	doom2fwad;
     char*	plutoniawad;
     char*	tntwad;
 

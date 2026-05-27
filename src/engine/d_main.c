@@ -791,15 +791,23 @@ void D_DoomMain (void)
 	autostart = true;
     }
 	
+    // -warp <episode> <map>  (original-DOOM style, always two args).
+    // Episode/map are 1-based; 0 is accepted as a synonym for 1 so that
+    // players who think in 0-based terms still land on E1M1. For commercial
+    // gamemodes the episode is ignored and only the map is used.
     p = M_CheckParm ("-warp");
-    if (p && p < myargc-1)
+    if (p && p < myargc-2)
     {
+	int e = atoi (myargv[p+1]);
+	int m = atoi (myargv[p+2]);
+	if (e <= 0) e = 1;
+	if (m <= 0) m = 1;
 	if (gamemode == commercial)
-	    startmap = atoi (myargv[p+1]);
+	    startmap = m;
 	else
 	{
-	    startepisode = myargv[p+1][0]-'0';
-	    startmap = myargv[p+2][0]-'0';
+	    startepisode = e;
+	    startmap = m;
 	}
 	autostart = true;
     }

@@ -34,21 +34,26 @@ add_project_arguments(
   language : 'c',
 )
 
-sdl2_dep = dependency('sdl2')
-m_dep    = cc.find_library('m', required : false)
+sdl2_dep    = dependency('sdl2')
+ncurses_dep = dependency('ncurses')
+m_dep       = cc.find_library('m', required : false)
 
 # ---- include directories ---------------------------------------------------
 #
 # src/common  : wire protocol + framing, shared by both binaries.
 # src/engine  : headless game engine (original DOOM sources + net transport).
 # src/client  : SDL2 front-end (window, input capture, frame display).
+# src/config  : standalone ncurses configurator for ~/.doomrc.
 #
 # The client also reads src/engine headers for KEY_* constants in doomdef.h,
-# which are part of the wire-level input vocabulary.
+# which are part of the wire-level input vocabulary. The config tool keeps
+# its own copy of the KEY_* numeric constants instead, so it does not pull
+# in the engine headers (whose symbols collide with ncurses' KEY_* macros).
 #
 common_inc = include_directories('src/common')
 engine_inc = include_directories('src/engine')
 client_inc = include_directories('src/client')
+config_inc = include_directories('src/config')
 
 # ---- common ----------------------------------------------------------------
 #
@@ -162,5 +167,25 @@ executable('doom-client',
   client_sources + common_sources,
   include_directories : [client_inc, common_inc, engine_inc],
   dependencies        : [sdl2_dep],
+  install             : false,
+)
+
+# ---- doom-config -----------------------------------------------------------
+#
+# ncurses TUI for editing a doomrc. Standalone; shares no compiled code with
+# the engine or client. The on-disk format it produces matches the parser
+# in src/engine/m_misc.c (M_LoadDefaults / M_SaveDefaults).
+#
+config_sources = files(
+  'src/config/config_main.c',
+  'src/config/config_data.c',
+  'src/config/config_keys.c',
+  'src/config/config_ui.c',
+)
+
+executable('doom-config',
+  config_sources,
+  include_directories : [config_inc],
+  dependencies        : [ncurses_dep],
   install             : false,
 )

@@ -29,15 +29,15 @@ static void usage(const char *prog)
 {
     fprintf(stderr,
         "Usage: %s --wad PATH [--host HOST] [--port N] [--multiply N] [--grabmouse]\n"
-        "       [--skill N] [--warp E M] [--config PATH] [--config-out PATH]\n"
+        "       [--skill N] [--warp E M | --warp M] [--config PATH] [--config-out PATH]\n"
         "  --wad PATH        Local WAD file to upload to the engine\n"
         "  --host HOST       Engine host (default 127.0.0.1)\n"
         "  --port N          Engine port (default %d)\n"
         "  --multiply N      Window scale factor (default 3)\n"
         "  --grabmouse       Capture the mouse for relative motion\n"
         "  --skill N         Start at skill 1..5 (1=baby, 5=nightmare)\n"
-        "  --warp E M        Warp to episode E map M (counts from 1; 0 is treated\n"
-        "                    as 1). For DOOM 2 / commercial only M is used.\n"
+        "  --warp E M        Warp to episode E map M (DOOM 1 / Ultimate / Registered)\n"
+        "  --warp M          Warp to map M (DOOM 2 / commercial)\n"
         "  --config PATH     Upload this default.cfg to the engine as the\n"
         "                    session's starting config\n"
         "  --config-out PATH Write the engine's updated default.cfg back to\n"
@@ -335,8 +335,8 @@ int main(int argc, char **argv)
     int         multiply   = 3;
     int         grab_mouse = 0;
     const char *skill      = NULL;     // user-supplied "-skill" value, or NULL
-    const char *warp_a     = NULL;     // "-warp" episode value
-    const char *warp_b     = NULL;     // "-warp" map value
+    const char *warp_a     = NULL;     // first "-warp" value (map or episode)
+    const char *warp_b     = NULL;     // optional second "-warp" value (map)
     const char *config_in  = NULL;     // optional default.cfg to upload
     const char *config_out = NULL;     // optional path to write engine's
                                        // updated default.cfg back to
@@ -354,12 +354,14 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--skill") && i + 1 < argc) { skill = argv[++i]; }
         else if (!strcmp(argv[i], "--config") && i + 1 < argc) { config_in = argv[++i]; }
         else if (!strcmp(argv[i], "--config-out") && i + 1 < argc) { config_out = argv[++i]; }
-        else if (!strcmp(argv[i], "--warp") && i + 2 < argc) {
-            // Original-DOOM style: episode + map. Counts from 1; the engine
-            // also accepts 0 as a synonym for 1. For commercial WADs the
-            // engine ignores the episode and uses only the map.
+        else if (!strcmp(argv[i], "--warp")  && i + 1 < argc) {
+            // Accept either "--warp M" (commercial) or "--warp E M" (others).
+            // The engine decides which form is valid based on its gamemode;
+            // we just forward the values verbatim.
             warp_a = argv[++i];
-            warp_b = argv[++i];
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                warp_b = argv[++i];
+            }
         }
         else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
             usage(argv[0]); return 0;

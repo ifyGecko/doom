@@ -95,9 +95,9 @@ enum {
 //   bytes wad_name[wad_name_len]  -- canonical basename, e.g. "doom1.wad"
 //   u32 wad_total_size            -- total bytes the client will upload
 //
-// The wad_name must match one of the names IdentifyVersion looks for in
-// DOOMWADDIR (doom1.wad, doom.wad, doomu.wad, doom2.wad, plutonia.wad,
-// tnt.wad, doom2f.wad). The engine writes the WAD to a fresh temp dir
-// and points DOOMWADDIR at it.
+// The wad_name is only a basename hint for the engine's temp copy and may be
+// any "*.wad" name. The engine identifies the game mode from the WAD contents
+// (see D_DetectGameMode in d_main.c), so the filename does not need to match
+// any particular IWAD name.
 
 #endif

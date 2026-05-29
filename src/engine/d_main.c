@@ -455,108 +455,67 @@ void D_AddFile (char *file)
 
 //
 // IdentifyVersion
-// Checks availability of IWAD files by name,
-// to determine whether registered/commercial features
-// should be executed (notably loading PWAD's).
+// Locates the IWAD given with -iwad.  The filename is irrelevant; the
+// actual game mode is derived from the WAD contents once the lumps are
+// loaded (see D_DetectGameMode).
 //
 void IdentifyVersion (void)
 {
-
-    char*	doom1wad;
-    char*	doomwad;
-    char*	doomuwad;
-    char*	doom2wad;
-
-    char*	plutoniawad;
-    char*	tntwad;
+    int   p;
+    char* iwad;
 
 #ifdef NORMALUNIX
     char *home;
-    char *doomwaddir;
-    doomwaddir = getenv("DOOMWADDIR");
-    if (!doomwaddir)
-	doomwaddir = ".";
-
-    // Commercial.
-    doom2wad = malloc(strlen(doomwaddir)+1+9+1);
-    sprintf(doom2wad, "%s/doom2.wad", doomwaddir);
-
-    // Retail.
-    doomuwad = malloc(strlen(doomwaddir)+1+8+1);
-    sprintf(doomuwad, "%s/doomu.wad", doomwaddir);
-    
-    // Registered.
-    doomwad = malloc(strlen(doomwaddir)+1+8+1);
-    sprintf(doomwad, "%s/doom.wad", doomwaddir);
-    
-    // Shareware.
-    doom1wad = malloc(strlen(doomwaddir)+1+9+1);
-    sprintf(doom1wad, "%s/doom1.wad", doomwaddir);
-
-     // Bug, dear Shawn.
-    // Insufficient malloc, caused spurious realloc errors.
-    plutoniawad = malloc(strlen(doomwaddir)+1+/*9*/12+1);
-    sprintf(plutoniawad, "%s/plutonia.wad", doomwaddir);
-
-    tntwad = malloc(strlen(doomwaddir)+1+9+1);
-    sprintf(tntwad, "%s/tnt.wad", doomwaddir);
-
 
     home = getenv("HOME");
     if (!home)
-      I_Error("Please set $HOME to your home directory");
+        I_Error("Please set $HOME to your home directory");
     sprintf(basedefault, "%s/.doomrc", home);
 #endif
 
+    p = M_CheckParm ("-iwad");
+    if (!p || p >= myargc-1)
+        I_Error ("Usage: -iwad <wadfile>  "
+                 "(path to a Doom IWAD; any filename is accepted)");
 
-    if ( !access (doom2wad,R_OK) )
+    iwad = myargv[p+1];
+
+    if (access (iwad, R_OK))
+        I_Error ("IWAD file '%s' not found (or not readable)!", iwad);
+
+    D_AddFile (iwad);
+}
+
+
+//
+// D_DetectGameMode
+// Determine the game mode from the contents of the loaded IWAD instead of
+// its filename, so any correctly-structured WAD runs regardless of how it
+// is named.  Must be called after W_InitMultipleFiles.
+//
+void D_DetectGameMode (void)
+{
+    if (W_CheckNumForName ("map01") >= 0)
     {
-	gamemode = commercial;
-	D_AddFile (doom2wad);
-	return;
+        gamemission = doom2;
+        gamemode = commercial;
     }
-
-    if ( !access (plutoniawad, R_OK ) )
+    else if (W_CheckNumForName ("e1m1") >= 0)
     {
-      gamemode = commercial;
-      D_AddFile (plutoniawad);
-      return;
-    }
+        gamemission = doom;
 
-    if ( !access ( tntwad, R_OK ) )
+        if (W_CheckNumForName ("e4m1") >= 0)
+            gamemode = retail;
+        else if (W_CheckNumForName ("e3m1") >= 0)
+            gamemode = registered;
+        else
+            gamemode = shareware;
+    }
+    else
     {
-      gamemode = commercial;
-      D_AddFile (tntwad);
-      return;
+        I_Error ("Unknown or invalid IWAD file "
+                 "(no MAP01 or E1M1 lump found).");
     }
-
-    if ( !access (doomuwad,R_OK) )
-    {
-      gamemode = retail;
-      D_AddFile (doomuwad);
-      return;
-    }
-
-    if ( !access (doomwad,R_OK) )
-    {
-      gamemode = registered;
-      D_AddFile (doomwad);
-      return;
-    }
-
-    if ( !access (doom1wad,R_OK) )
-    {
-      gamemode = shareware;
-      D_AddFile (doom1wad);
-      return;
-    }
-
-    printf("Game mode indeterminate.\n");
-    gamemode = indetermined;
-
-    // We don't abort. Let's see what the PWAD contains.
-    //exit(1);
-    //I_Error ("Game mode indeterminate\n");
 }
 
 //
@@ -652,6 +611,62 @@ void D_DoomMain (void)
     fastparm = M_CheckParm ("-fast");
     devparm = M_CheckParm ("-devparm");
 
+
+    if (devparm)
+	printf(D_DEVSTR);
+    
+    // turbo option
+    if ( (p=M_CheckParm ("-turbo")) )
+    {
+	int     scale = 200;
+	extern int forwardmove[2];
+	extern int sidemove[2];
+	
+	if (p<myargc-1)
+	    scale = atoi (myargv[p+1]);
+	if (scale < 10)
+	    scale = 10;
+	if (scale > 400)
+	    scale = 400;
+	printf ("turbo scale: %i%%\n",scale);
+	forwardmove[0] = forwardmove[0]*scale/100;
+	forwardmove[1] = forwardmove[1]*scale/100;
+	sidemove[0] = sidemove[0]*scale/100;
+	sidemove[1] = sidemove[1]*scale/100;
+    }
+    
+    // add any files specified on the command line with -file wadfile
+    // to the wad list
+    p = M_CheckParm ("-file");
+    if (p)
+    {
+	// the parms after p are wadfile/lump names,
+	// until end of parms or another - preceded parm
+	modifiedgame = true;            // homebrew levels
+	while (++p != myargc && myargv[p][0] != '-')
+	    D_AddFile (myargv[p]);
+    }
+
+    // init subsystems
+    printf ("V_Init: allocate screens.\n");
+    V_Init ();
+
+    printf ("M_LoadDefaults: Load system defaults.\n");
+    M_LoadDefaults ();              // load before initing other systems
+
+    printf ("Z_Init: Init zone memory allocation daemon. \n");
+    Z_Init ();
+
+    printf ("W_Init: Init WADfiles.\n");
+    W_InitMultipleFiles (wadfiles);
+
+    // Determine the game mode from the loaded IWAD's contents, not its
+    // filename, so any correctly-structured WAD runs no matter how it is
+    // named.  Done here because it requires the lumps to be loaded.
+    D_DetectGameMode ();
+
+    // gamemode is known now: build the startup banner and read the start
+    // skill/episode/map parms (-warp branches on gamemode).
     switch ( gamemode )
     {
       case retail:
@@ -693,41 +708,6 @@ void D_DoomMain (void)
     
     printf ("%s\n",title);
 
-    if (devparm)
-	printf(D_DEVSTR);
-    
-    // turbo option
-    if ( (p=M_CheckParm ("-turbo")) )
-    {
-	int     scale = 200;
-	extern int forwardmove[2];
-	extern int sidemove[2];
-	
-	if (p<myargc-1)
-	    scale = atoi (myargv[p+1]);
-	if (scale < 10)
-	    scale = 10;
-	if (scale > 400)
-	    scale = 400;
-	printf ("turbo scale: %i%%\n",scale);
-	forwardmove[0] = forwardmove[0]*scale/100;
-	forwardmove[1] = forwardmove[1]*scale/100;
-	sidemove[0] = sidemove[0]*scale/100;
-	sidemove[1] = sidemove[1]*scale/100;
-    }
-    
-    // add any files specified on the command line with -file wadfile
-    // to the wad list
-    p = M_CheckParm ("-file");
-    if (p)
-    {
-	// the parms after p are wadfile/lump names,
-	// until end of parms or another - preceded parm
-	modifiedgame = true;            // homebrew levels
-	while (++p != myargc && myargv[p][0] != '-')
-	    D_AddFile (myargv[p]);
-    }
-
     // get skill / episode / map from parms
     startskill = sk_medium;
     startepisode = 1;
@@ -763,18 +743,6 @@ void D_DoomMain (void)
 	autostart = true;
     }
     
-    // init subsystems
-    printf ("V_Init: allocate screens.\n");
-    V_Init ();
-
-    printf ("M_LoadDefaults: Load system defaults.\n");
-    M_LoadDefaults ();              // load before initing other systems
-
-    printf ("Z_Init: Init zone memory allocation daemon. \n");
-    Z_Init ();
-
-    printf ("W_Init: Init WADfiles.\n");
-    W_InitMultipleFiles (wadfiles);
     
 
     // Check for -file in shareware

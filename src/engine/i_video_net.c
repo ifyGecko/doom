@@ -7,8 +7,9 @@
 //
 //   - I_NetBootstrap (called before D_DoomMain) opens a listening socket,
 //     accepts one client, performs the HELLO handshake, receives the WAD
-//     into a fresh temp directory, and sets DOOMWADDIR so the existing
-//     IdentifyVersion() code finds it.
+//     into a fresh temp directory, and appends "-iwad <path>" to the engine
+//     argv. The WAD's name is irrelevant: D_DetectGameMode (in d_main.c)
+//     derives the game mode from the WAD contents, not its filename.
 //
 //   - I_InitGraphics simply marks the engine ready and tells the client
 //     frames are about to flow.
@@ -417,8 +418,25 @@ void I_NetBootstrap(void)
             fprintf(stderr, "[engine] WAD received OK\n");
         }
 
-        // Point IdentifyVersion at the temp dir.
-        setenv("DOOMWADDIR", temp_dir, 1);
+        // Hand the freshly-received WAD to the engine by its exact path.
+        // Its filename is whatever the client chose; D_DetectGameMode works
+        // out the game mode from the WAD's contents, so the name is irrelevant
+        // (it no longer has to match doom2.wad / doom1.wad / etc.).
+        {
+            char **new_argv;
+            char  *arg_flag = strdup("-iwad");
+            char  *arg_path = strdup(temp_wad);
+            int    i;
+
+            if (!arg_flag || !arg_path) die("strdup iwad arg");
+            new_argv = (char **)malloc(sizeof(char *) * (myargc + 2));
+            if (!new_argv) die("malloc argv (iwad)");
+            for (i = 0; i < myargc; i++) new_argv[i] = myargv[i];
+            new_argv[myargc]     = arg_flag;
+            new_argv[myargc + 1] = arg_path;
+            myargv  = new_argv;
+            myargc += 2;
+        }
     }
 
     // From here on, the engine is free to start. The fd stays open in

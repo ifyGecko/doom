@@ -405,8 +405,17 @@ R_PointToDist
 	dx = dy;
 	dy = temp;
     }
-	
-    angle = (tantoangle[ FixedDiv(dy,dx)>>DBITS ]+ANG90) >> ANGLETOFINESHIFT;
+
+    // Guard against dx == 0 (view point exactly coincident with the seg
+    // vertex passed in).  Vanilla FixedDiv(_, 0) returns MAXINT and the
+    // shift then indexes tantoangle[] wildly out of bounds, which is the
+    // crash freedoom1 E2M1 (and others) trigger.  Same fix chocolate-doom
+    // applied for udm1.wad.  tantoangle[0] is 0, so the equivalent angle
+    // when dy == dx == 0 is just ANG90.
+    if (dx == 0)
+	angle = ANG90 >> ANGLETOFINESHIFT;
+    else
+	angle = (tantoangle[ FixedDiv(dy,dx)>>DBITS ]+ANG90) >> ANGLETOFINESHIFT;
 
     // use as cosine
     dist = FixedDiv (dx, finesine[angle] );	

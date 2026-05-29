@@ -22,8 +22,6 @@
 //-----------------------------------------------------------------------------
 
 
-static const char
-rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 
 #include "stdlib.h"
 
@@ -71,12 +69,6 @@ FixedDiv2
 ( fixed_t	a,
   fixed_t	b )
 {
-#if 0
-    long long c;
-    c = ((long long)a<<16) / ((long long)b);
-    return (fixed_t) c;
-#endif
-
     double c;
 
     c = ((double)a) / ((double)b) * FRACUNIT;

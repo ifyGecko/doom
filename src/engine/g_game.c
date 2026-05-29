@@ -21,8 +21,6 @@
 //-----------------------------------------------------------------------------
 
 
-static const char
-rcsid[] = "$Id: g_game.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 
 #include <string.h>
 #include <stdlib.h>
@@ -105,8 +103,6 @@ boolean         precache = true;        // if true, load all graphics at start
  
 wbstartstruct_t wminfo;               	// parms for world map / intermission 
  
-short		consistancy[MAXPLAYERS][BACKUPTICS]; 
-
 ticcmd_t        netcmds[MAXPLAYERS][BACKUPTICS];
 int             maketic;
  
@@ -199,9 +195,6 @@ void G_BuildTiccmd (ticcmd_t* cmd)
 
     base = I_BaseTiccmd ();		// empty, or external driver
     memcpy (cmd,base,sizeof(*cmd)); 
-	
-    cmd->consistancy = 
-	consistancy[consoleplayer][maketic%BACKUPTICS]; 
 
  
     strafe = gamekeydown[key_strafe] || mousebuttons[mousebstrafe] 

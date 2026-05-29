@@ -22,8 +22,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: m_menu.c,v 1.7 1997/02/03 22:45:10 b1 Exp $";
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -656,13 +654,6 @@ void M_ChangeDetail(int choice)
     fprintf( stderr, "M_ChangeDetail: low detail mode n.a.\n");
 
     return;
-    
-    /*R_SetViewSize (screenblocks, detailLevel);
-
-    if (!detailLevel)
-	players[consoleplayer].message = DETAILHI;
-    else
-	players[consoleplayer].message = DETAILLO;*/
 }
 
 

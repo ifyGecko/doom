@@ -22,8 +22,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: p_tick.c,v 1.4 1997/02/03 16:47:55 b1 Exp $";
 
 #include "z_zone.h"
 #include "p_local.h"
@@ -81,16 +79,6 @@ void P_RemoveThinker (thinker_t* thinker)
 {
   // FIXME: NOP.
   thinker->function.acv = (actionf_v)(-1);
-}
-
-
-
-//
-// P_AllocateThinker
-// Allocates memory and adds a new thinker at the end of the list.
-//
-void P_AllocateThinker (thinker_t*	thinker)
-{
 }
 
 

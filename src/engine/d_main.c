@@ -25,7 +25,6 @@
 //-----------------------------------------------------------------------------
 
 
-static const char rcsid[] = "$Id: d_main.c,v 1.8 1997/02/03 22:45:09 b1 Exp $";
 
 #define	BGCOLOR		7
 #define	FGCOLOR		8
@@ -241,9 +240,6 @@ void D_Display (void)
 	break;
     }
     
-    // draw buffered stuff to screen
-    I_UpdateNoBlit ();
-    
     // draw the view directly
     if (gamestate == GS_LEVEL && !automapactive && gametic)
 	R_RenderPlayerView (&players[displayplayer]);
@@ -319,7 +315,6 @@ void D_Display (void)
 	wipestart = nowtime;
 	done = wipe_ScreenWipe(wipe_Melt
 			       , 0, 0, SCREENWIDTH, SCREENHEIGHT, tics);
-	I_UpdateNoBlit ();
 	M_Drawer ();                            // menu is drawn even on top of wipes
 	I_FinishUpdate ();                      // page flip or blit buffer
     } while (!done);
@@ -336,9 +331,6 @@ void D_DoomLoop (void)
 
     while (1)
     {
-	// frame syncronous IO operations
-	I_StartFrame ();
-
 	// process one tic
 	I_StartTic ();
 	D_ProcessEvents ();
@@ -373,7 +365,6 @@ void D_DoomLoop (void)
 //
 //  DEMO LOOP
 //
-int             demosequence;
 int             pagetic;
 char                    *pagename;
 
@@ -434,7 +425,6 @@ void D_DoAdvanceDemo (void)
 void D_StartTitle (void)
 {
     gameaction = ga_nothing;
-    demosequence = 0;
     D_AdvanceDemo ();
 }
 
@@ -692,22 +682,6 @@ void D_DoomMain (void)
 		 "                           ",
 		 VERSION/100,VERSION%100);
 	break;
-/*FIXME
-       case pack_plut:
-	sprintf (title,
-		 "                   "
-		 "DOOM 2: Plutonia Experiment v%i.%i"
-		 "                           ",
-		 VERSION/100,VERSION%100);
-	break;
-      case pack_tnt:
-	sprintf (title,
-		 "                     "
-		 "DOOM 2: TNT - Evilution v%i.%i"
-		 "                           ",
-		 VERSION/100,VERSION%100);
-	break;
-*/
       default:
 	sprintf (title,
 		 "                     "
@@ -878,9 +852,6 @@ void D_DoomMain (void)
 
     printf ("\nP_Init: Init Playloop state.\n");
     P_Init ();
-
-    printf ("I_Init: Setting up machine state.\n");
-    I_Init ();
 
     consoleplayer = displayplayer = 0;
     playeringame[0] = true;

@@ -20,8 +20,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: hu_stuff.c,v 1.4 1997/02/03 16:47:52 b1 Exp $";
 
 #include <ctype.h>
 
@@ -335,15 +333,6 @@ void HU_Start(void)
       case retail:
 	s = HU_TITLE;
 	break;
-
-/* FIXME
-      case pack_plut:
-	s = HU_TITLEP;
-	break;
-      case pack_tnt:
-	s = HU_TITLET;
-	break;
-*/
 	
       case commercial:
       default:

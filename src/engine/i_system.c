@@ -20,8 +20,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 
 
 #include <stdlib.h>
@@ -47,16 +45,6 @@ rcsid[] = "$Id: m_bbox.c,v 1.1 1997/02/03 22:45:10 b1 Exp $";
 
 int	mb_used = 6;
 
-
-void
-I_Tactile
-( int	on,
-  int	off,
-  int	total )
-{
-  // UNUSED.
-  on = off = total = 0;
-}
 
 ticcmd_t	emptycmd;
 ticcmd_t*	I_BaseTiccmd(void)
@@ -92,14 +80,6 @@ int  I_GetTime (void)
 }
 
 
-
-//
-// I_Init
-//
-void I_Init (void)
-{
-    //  I_InitGraphics();
-}
 
 //
 // I_Quit

@@ -81,22 +81,6 @@ static char     temp_config[512] = {0};  // set iff MSG_CONFIG was received
 
 // ---- helpers ---------------------------------------------------------------
 
-static int parse_int_arg(const char *flag, int fallback)
-{
-    int p = M_CheckParm((char *)flag);
-    if (p > 0 && p < myargc - 1)
-        return atoi(myargv[p + 1]);
-    return fallback;
-}
-
-static const char *parse_str_arg(const char *flag, const char *fallback)
-{
-    int p = M_CheckParm((char *)flag);
-    if (p > 0 && p < myargc - 1)
-        return myargv[p + 1];
-    return fallback;
-}
-
 static void cleanup_temp(void)
 {
     if (temp_config[0]) { unlink(temp_config); temp_config[0] = 0; }
@@ -500,8 +484,6 @@ void I_ShutdownGraphics(void)
 
 // ---- engine API: input -----------------------------------------------------
 
-void I_StartFrame(void) { /* nothing */ }
-
 void I_StartTic(void)
 {
     uint8_t        type;
@@ -566,8 +548,6 @@ void I_StartTic(void)
 
 
 // ---- engine API: video out -------------------------------------------------
-
-void I_UpdateNoBlit(void) { /* nothing */ }
 
 void I_SetPalette(byte *palette_in)
 {

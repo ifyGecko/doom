@@ -22,8 +22,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: p_pspr.c,v 1.5 1997/02/03 22:45:12 b1 Exp $";
 
 #include "doomdef.h"
 #include "d_event.h"
@@ -360,10 +358,6 @@ A_CheckReload
   pspdef_t*	psp )
 {
     P_CheckAmmo (player);
-#if 0
-    if (player->ammo[am_shell]<2)
-	P_SetPsprite (player, ps_weapon, S_DSNR1);
-#endif
 }
 
 
@@ -794,18 +788,6 @@ void A_BFGSpray (mobj_t* mo)
 	P_DamageMobj (linetarget, mo->target,mo->target, damage);
     }
 }
-
-
-//
-// A_BFGsound
-//
-void
-A_BFGsound
-( player_t*	player,
-  pspdef_t*	psp )
-{
-}
-
 
 
 //

@@ -53,8 +53,6 @@
 
 #define DOSY		"(press y to quit)"
 
-#define DETAILHI	"High detail"
-#define DETAILLO	"Low detail"
 #define GAMMALVL0	"Gamma correction OFF"
 #define GAMMALVL1	"Gamma correction level 1"
 #define GAMMALVL2	"Gamma correction level 2"

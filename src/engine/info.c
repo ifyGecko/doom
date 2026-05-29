@@ -23,8 +23,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: info.c,v 1.3 1997/01/26 07:45:00 b1 Exp $";
 
 // Data.
 #include "m_fixed.h"
@@ -75,7 +73,6 @@ void A_GunFlash();
 void A_FireMissile();
 void A_Saw();
 void A_FirePlasma();
-void A_BFGsound();
 void A_FireBFG();
 void A_BFGSpray();
 void A_Explode();
@@ -126,7 +123,6 @@ void A_BrainScream();
 void A_BrainDie();
 void A_BrainAwake();
 void A_BrainSpit();
-void A_SpawnSound();
 void A_SpawnFly();
 void A_BrainExplode();
 
@@ -216,7 +212,7 @@ state_t	states[NUMSTATES] = {
     {SPR_BFGG,0,1,{A_WeaponReady},S_BFG,0,0},	// S_BFG
     {SPR_BFGG,0,1,{A_Lower},S_BFGDOWN,0,0},	// S_BFGDOWN
     {SPR_BFGG,0,1,{A_Raise},S_BFGUP,0,0},	// S_BFGUP
-    {SPR_BFGG,0,20,{A_BFGsound},S_BFG2,0,0},	// S_BFG1
+    {SPR_BFGG,0,20,{NULL},S_BFG2,0,0},	// S_BFG1
     {SPR_BFGG,1,10,{A_GunFlash},S_BFG3,0,0},	// S_BFG2
     {SPR_BFGG,1,10,{A_FireBFG},S_BFG4,0,0},	// S_BFG3
     {SPR_BFGG,1,20,{A_ReFire},S_BFG,0,0},	// S_BFG4
@@ -919,7 +915,7 @@ state_t	states[NUMSTATES] = {
     {SPR_SSWV,0,10,{A_Look},S_BRAINEYE,0,0},	// S_BRAINEYE
     {SPR_SSWV,0,181,{A_BrainAwake},S_BRAINEYE1,0,0},	// S_BRAINEYESEE
     {SPR_SSWV,0,150,{A_BrainSpit},S_BRAINEYE1,0,0},	// S_BRAINEYE1
-    {SPR_BOSF,32768,3,{A_SpawnSound},S_SPAWN2,0,0},	// S_SPAWN1
+    {SPR_BOSF,32768,3,{A_SpawnFly},S_SPAWN2,0,0},	// S_SPAWN1
     {SPR_BOSF,32769,3,{A_SpawnFly},S_SPAWN3,0,0},	// S_SPAWN2
     {SPR_BOSF,32770,3,{A_SpawnFly},S_SPAWN4,0,0},	// S_SPAWN3
     {SPR_BOSF,32771,3,{A_SpawnFly},S_SPAWN1,0,0},	// S_SPAWN4

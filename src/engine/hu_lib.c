@@ -20,8 +20,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: hu_lib.c,v 1.3 1997/01/26 07:44:58 b1 Exp $";
 
 #include <ctype.h>
 
@@ -38,10 +36,6 @@ rcsid[] = "$Id: hu_lib.c,v 1.3 1997/01/26 07:44:58 b1 Exp $";
 #define noterased viewwindowx
 
 extern boolean	automapactive;	// in AM_map.c
-
-void HUlib_init(void)
-{
-}
 
 void HUlib_clearTextLine(hu_textline_t* t)
 {

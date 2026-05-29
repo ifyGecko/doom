@@ -279,7 +279,6 @@ typedef enum
 
 // All important printed strings.
 // Language selection (message strings).
-//#include "dstrings.h"
 
 // Player is a special actor.
 //struct player_s;

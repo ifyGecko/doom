@@ -22,8 +22,6 @@
 //
 //-----------------------------------------------------------------------------
 
-static const char
-rcsid[] = "$Id: p_switch.c,v 1.3 1997/01/28 22:08:29 b1 Exp $";
 
 
 #include "i_system.h"
@@ -124,18 +122,6 @@ void P_InitSwitchList(void)
 		
 	if (alphSwitchList[i].episode <= episode)
 	{
-#if 0	// UNUSED - debug?
-	    int		value;
-			
-	    if (R_CheckTextureNumForName(alphSwitchList[i].name1) < 0)
-	    {
-		I_Error("Can't find switch texture '%s'!",
-			alphSwitchList[i].name1);
-		continue;
-	    }
-	    
-	    value = R_TextureNumForName(alphSwitchList[i].name1);
-#endif
 	    switchlist[index++] = R_TextureNumForName(alphSwitchList[i].name1);
 	    switchlist[index++] = R_TextureNumForName(alphSwitchList[i].name2);
 	}

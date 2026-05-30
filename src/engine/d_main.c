@@ -57,6 +57,7 @@
 
 #include "i_system.h"
 #include "i_video.h"
+#include "i_initlog.h"
 
 #include "g_game.h"
 
@@ -648,16 +649,16 @@ void D_DoomMain (void)
     }
 
     // init subsystems
-    printf ("V_Init: allocate screens.\n");
+    L_Infof ("V_Init: allocate screens.");
     V_Init ();
 
-    printf ("M_LoadDefaults: Load system defaults.\n");
+    L_Infof ("M_LoadDefaults: Load system defaults.");
     M_LoadDefaults ();              // load before initing other systems
 
-    printf ("Z_Init: Init zone memory allocation daemon. \n");
+    L_Infof ("Z_Init: Init zone memory allocation daemon.");
     Z_Init ();
 
-    printf ("W_Init: Init WADfiles.\n");
+    L_Infof ("W_Init: Init WADfiles.");
     W_InitMultipleFiles (wadfiles);
 
     // Determine the game mode from the loaded IWAD's contents, not its
@@ -706,7 +707,7 @@ void D_DoomMain (void)
 	break;
     }
     
-    printf ("%s\n",title);
+    L_Infof ("%s",title);
 
     // get skill / episode / map from parms
     startskill = sk_medium;
@@ -742,6 +743,10 @@ void D_DoomMain (void)
 	}
 	autostart = true;
     }
+
+    if (autostart)
+        L_Infof ("autostart: skill=%d episode=%d map=%d",
+                 startskill, startepisode, startmap);
     
     
 
@@ -812,22 +817,22 @@ void D_DoomMain (void)
 	break;
     }
 
-    printf ("M_Init: Init miscellaneous info.\n");
+    L_Infof ("M_Init: Init miscellaneous info.");
     M_Init ();
 
-    printf ("R_Init: Init DOOM refresh daemon - ");
+    L_Infof ("R_Init: Init DOOM refresh daemon.");
     R_Init ();
 
-    printf ("\nP_Init: Init Playloop state.\n");
+    L_Infof ("P_Init: Init Playloop state.");
     P_Init ();
 
     consoleplayer = displayplayer = 0;
     playeringame[0] = true;
 
-    printf ("HU_Init: Setting up heads up display.\n");
+    L_Infof ("HU_Init: Setting up heads up display.");
     HU_Init ();
 
-    printf ("ST_Init: Init status bar.\n");
+    L_Infof ("ST_Init: Init status bar.");
     ST_Init ();
 
     if (autostart)

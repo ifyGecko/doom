@@ -39,6 +39,7 @@
 #include "doomtype.h"
 #include "m_swap.h"
 #include "i_system.h"
+#include "i_initlog.h"
 #include "z_zone.h"
 
 #ifdef __GNUG__
@@ -160,11 +161,11 @@ void W_AddFile (char *filename)
 		
     if ( (handle = open (filename,O_RDONLY | O_BINARY)) == -1)
     {
-	printf (" couldn't open %s\n",filename);
+	L_Warnf (" couldn't open %s", filename);
 	return;
     }
 
-    printf (" adding %s\n",filename);
+    L_Infof (" adding %s", filename);
     startlump = numlumps;
 	
     if (strcmpi (filename+strlen(filename)-3 , "wad" ) )
@@ -193,6 +194,9 @@ void W_AddFile (char *filename)
 	}
 	header.numlumps = LONG(header.numlumps);
 	header.infotableofs = LONG(header.infotableofs);
+	L_Infof ("  %.4s %d lumps, directory at offset %d",
+	         header.identification,
+	         header.numlumps, header.infotableofs);
 	length = header.numlumps*sizeof(filelump_t);
 	fileinfo = alloca (length);
 	lseek (handle, header.infotableofs, SEEK_SET);

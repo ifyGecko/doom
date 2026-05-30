@@ -65,12 +65,40 @@ enum {
     MSG_PONG        = 0x86,  // { u64 client_time_us } - echoed from PING
     MSG_ERROR       = 0x87,  // { u16 code; bytes msg }
     MSG_BYE_S       = 0x88,  // empty
-    MSG_CONFIG_OUT  = 0x89   // raw bytes of default.cfg as written by the
+    MSG_CONFIG_OUT  = 0x89,  // raw bytes of default.cfg as written by the
                              // engine at clean shutdown (M_SaveDefaults).
                              // Sent immediately before MSG_BYE_S so a client
                              // can persist updated defaults. Omitted if no
                              // config file ever existed for the session.
+    MSG_LOG         = 0x8A   // init-phase log line from engine -> client.
+                             // Only emitted when the client set
+                             // DOOMNET_CAP_INIT_LOG in HELLO.caps. Sent from
+                             // I_NetBootstrap through I_InitGraphics
+                             // (i.e. up to MSG_READY). Game-loop activity
+                             // is NOT logged. Payload layout:
+                             //   u64 monotonic_us  -- microseconds since
+                             //                       session start
+                             //   u8  level         -- 0=INFO 1=WARN 2=ERROR
+                             //   u8  reserved      -- 0
+                             //   u16 msg_len
+                             //   bytes msg[msg_len] -- UTF-8/ASCII text,
+                             //                        no embedded NUL,
+                             //                        trailing '\n' stripped
 };
+
+// HELLO.caps bits (client -> server, see HELLO payload below).
+#define DOOMNET_CAP_INIT_LOG    0x00000001u  // ship init-phase logs as
+                                             // MSG_LOG messages
+
+// MSG_LOG level codes.
+#define DOOMNET_LOG_INFO    0u
+#define DOOMNET_LOG_WARN    1u
+#define DOOMNET_LOG_ERROR   2u
+
+// Per-message ceilings for MSG_LOG. Longer lines are truncated with a
+// trailing "..." by the engine.
+#define DOOMNET_LOG_HEADER_BYTES 12u   // u64 + u8 + u8 + u16
+#define DOOMNET_LOG_MAX_MSG      4080u
 
 // Hard upper bound on a single MSG_CONFIG / MSG_CONFIG_OUT payload. The real
 // default.cfg is well under 8 KiB; we allow some headroom for future keys.

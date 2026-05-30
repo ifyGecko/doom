@@ -25,11 +25,19 @@
 #include "framing.h"
 
 
+// Initialization-log state. Filled in by CLI parsing; consumed by do_hello
+// (caps bit), the pre-READY blocking recv wrappers, and the main loop.
+static int   log_enabled       = 0;     // any --log* flag set
+static FILE *log_fp            = NULL;  // open iff --log-file was given
+static const char *log_file_path = NULL;
+
+
 static void usage(const char *prog)
 {
     fprintf(stderr,
         "Usage: %s --wad PATH [--host HOST] [--port N] [--multiply N] [--grabmouse]\n"
         "       [--skill N] [--warp E M | --warp M] [--config PATH] [--config-out PATH]\n"
+        "       [--log] [--log-file PATH]\n"
         "  --wad PATH        Local WAD file to upload to the engine\n"
         "  --host HOST       Engine host (default 127.0.0.1)\n"
         "  --port N          Engine port (default %d)\n"
@@ -41,8 +49,80 @@ static void usage(const char *prog)
         "  --config PATH     Upload this default.cfg to the engine as the\n"
         "                    session's starting config\n"
         "  --config-out PATH Write the engine's updated default.cfg back to\n"
-        "                    this path at clean shutdown\n",
+        "                    this path at clean shutdown\n"
+        "  --log             Print engine init-phase log lines on this client's\n"
+        "                    stderr (handshake through window open)\n"
+        "  --log-file PATH   Same as --log, and also append each line to PATH\n"
+        "                    (truncates PATH at startup; rename if you want to\n"
+        "                    keep a previous run's log)\n",
         prog, DOOMNET_DEFAULT_PORT);
+}
+
+
+// Decode and print a MSG_LOG payload. Payload layout matches wire.h:
+//   u64 monotonic_us, u8 level, u8 reserved, u16 msg_len, bytes msg.
+// Output goes to stderr (always) and, if --log-file is in use, also to
+// the log file. The wire side does not include a trailing newline; we
+// add one when rendering.
+static void handle_log_msg(const uint8_t *payload, uint32_t len)
+{
+    uint64_t    ts;
+    uint8_t     level;
+    uint16_t    mlen;
+    const char *tag;
+    char        line[DOOMNET_LOG_MAX_MSG + 64];
+    int         n;
+
+    if (len < DOOMNET_LOG_HEADER_BYTES) return;
+    ts = (uint64_t)payload[0]
+       | ((uint64_t)payload[1] << 8)
+       | ((uint64_t)payload[2] << 16)
+       | ((uint64_t)payload[3] << 24)
+       | ((uint64_t)payload[4] << 32)
+       | ((uint64_t)payload[5] << 40)
+       | ((uint64_t)payload[6] << 48)
+       | ((uint64_t)payload[7] << 56);
+    level = payload[8];
+    mlen  = (uint16_t)(payload[10] | (payload[11] << 8));
+    if (DOOMNET_LOG_HEADER_BYTES + mlen > len) return;
+
+    switch (level) {
+      case DOOMNET_LOG_WARN:  tag = "WARN ";  break;
+      case DOOMNET_LOG_ERROR: tag = "ERROR"; break;
+      default:                tag = "INFO ";  break;
+    }
+
+    n = snprintf(line, sizeof line,
+                 "[engine T+%llu.%06llus %s] %.*s\n",
+                 (unsigned long long)(ts / 1000000ULL),
+                 (unsigned long long)(ts % 1000000ULL),
+                 tag, (int)mlen,
+                 (const char *)(payload + DOOMNET_LOG_HEADER_BYTES));
+    if (n < 0) return;
+    if ((size_t)n >= sizeof line) n = (int)(sizeof line) - 1;
+
+    fwrite(line, 1, (size_t)n, stderr);
+    if (log_fp) {
+        fwrite(line, 1, (size_t)n, log_fp);
+        fflush(log_fp);
+    }
+}
+
+
+// Wrapper around net_recv_blocking that transparently passes MSG_LOG
+// messages through handle_log_msg and returns the next non-LOG message.
+// Used during the pre-READY phase (HELLO_ACK, WAD_ACK, READY) where the
+// engine may interleave init-log messages with the response the client
+// is waiting for.
+static int recv_filtered_blocking(int fd, void *buf, size_t cap,
+                                  uint8_t *out_type, uint32_t *out_len)
+{
+    for (;;) {
+        int r = net_recv_blocking(fd, buf, cap, out_type, out_len);
+        if (r != 1) return r;
+        if (*out_type != MSG_LOG) return r;
+        handle_log_msg((const uint8_t *)buf, *out_len);
+    }
 }
 
 
@@ -106,8 +186,14 @@ static int do_hello(int fd, const char *wad_path, uint32_t wad_size)
     // u16 screen_h
     payload[off++] = (uint8_t)DOOMNET_SCREEN_H;
     payload[off++] = (uint8_t)(DOOMNET_SCREEN_H >> 8);
-    // u32 caps = 0
-    payload[off++] = 0; payload[off++] = 0; payload[off++] = 0; payload[off++] = 0;
+    // u32 caps - request init log shipping iff the user asked for it.
+    {
+        uint32_t caps = log_enabled ? DOOMNET_CAP_INIT_LOG : 0u;
+        payload[off++] = (uint8_t)(caps);
+        payload[off++] = (uint8_t)(caps >> 8);
+        payload[off++] = (uint8_t)(caps >> 16);
+        payload[off++] = (uint8_t)(caps >> 24);
+    }
     // u16 wad_name_len
     payload[off++] = (uint8_t)base_len;
     payload[off++] = (uint8_t)(base_len >> 8);
@@ -127,10 +213,10 @@ static int do_hello(int fd, const char *wad_path, uint32_t wad_size)
 
     // Expect HELLO_ACK
     {
-        uint8_t  buf[64];
+        uint8_t  buf[DOOMNET_LOG_HEADER_BYTES + DOOMNET_LOG_MAX_MSG + 16];
         uint8_t  type;
         uint32_t len;
-        int      r = net_recv_blocking(fd, buf, sizeof buf, &type, &len);
+        int      r = recv_filtered_blocking(fd, buf, sizeof buf, &type, &len);
         if (r != 1 || type != MSG_HELLO_ACK || len < 6) {
             fprintf(stderr, "bad HELLO_ACK (r=%d type=0x%02x len=%u)\n", r, type, len);
             return -1;
@@ -153,7 +239,9 @@ static int upload_wad(int fd, const char *path, uint32_t total)
     FILE     *fp = fopen(path, "rb");
     uint32_t  sent = 0;
     uint8_t  *buf;
-    uint8_t   ackbuf[64];
+    // Sized to hold the largest MSG_LOG payload that may be interleaved
+    // with each WAD_ACK while init logging is enabled.
+    uint8_t   ackbuf[DOOMNET_LOG_HEADER_BYTES + DOOMNET_LOG_MAX_MSG + 16];
 
     if (!fp) {
         fprintf(stderr, "fopen %s: %s\n", path, strerror(errno));
@@ -188,7 +276,7 @@ static int upload_wad(int fd, const char *path, uint32_t total)
             free(buf); fclose(fp); return -1;
         }
         // Wait for ACK before next chunk (simple flow control).
-        r = net_recv_blocking(fd, ackbuf, sizeof ackbuf, &type, &len);
+        r = recv_filtered_blocking(fd, ackbuf, sizeof ackbuf, &type, &len);
         if (r != 1 || type != MSG_WAD_ACK || len < 4) {
             fprintf(stderr, "bad WAD_ACK\n");
             free(buf); fclose(fp); return -1;
@@ -315,10 +403,10 @@ static int send_config(int fd, const char *path)
 
 static int await_ready(int fd)
 {
-    uint8_t  buf[64];
+    uint8_t  buf[DOOMNET_LOG_HEADER_BYTES + DOOMNET_LOG_MAX_MSG + 16];
     uint8_t  type;
     uint32_t len;
-    int      r = net_recv_blocking(fd, buf, sizeof buf, &type, &len);
+    int      r = recv_filtered_blocking(fd, buf, sizeof buf, &type, &len);
     if (r != 1 || type != MSG_READY) {
         fprintf(stderr, "expected READY, got type=0x%02x r=%d\n", type, r);
         return -1;
@@ -354,6 +442,11 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--skill") && i + 1 < argc) { skill = argv[++i]; }
         else if (!strcmp(argv[i], "--config") && i + 1 < argc) { config_in = argv[++i]; }
         else if (!strcmp(argv[i], "--config-out") && i + 1 < argc) { config_out = argv[++i]; }
+        else if (!strcmp(argv[i], "--log")) { log_enabled = 1; }
+        else if (!strcmp(argv[i], "--log-file") && i + 1 < argc) {
+            log_enabled = 1;
+            log_file_path = argv[++i];
+        }
         else if (!strcmp(argv[i], "--warp")  && i + 1 < argc) {
             // Accept either "--warp M" (commercial) or "--warp E M" (others).
             // The engine decides which form is valid based on its gamemode;
@@ -382,9 +475,19 @@ int main(int argc, char **argv)
     }
     wad_size = (uint32_t)st.st_size;
 
+    if (log_file_path) {
+        // Truncate any previous log; the user is responsible for renaming
+        // a previous run's file if they want to keep it.
+        log_fp = fopen(log_file_path, "w");
+        if (!log_fp) {
+            fprintf(stderr, "fopen %s: %s\n", log_file_path, strerror(errno));
+            return 1;
+        }
+    }
+
     fprintf(stderr, "[client] connecting to %s:%d\n", host, port);
     fd = tcp_connect(host, port);
-    if (fd < 0) return 1;
+    if (fd < 0) { if (log_fp) fclose(log_fp); return 1; }
 
     if (do_hello(fd, wad_path, wad_size) < 0)            { close(fd); return 1; }
     if (send_args(fd, skill, warp_a, warp_b) < 0)        { close(fd); return 1; }
@@ -462,6 +565,13 @@ int main(int argc, char **argv)
                       case MSG_PONG:
                         /* not yet used */
                         break;
+                      case MSG_LOG:
+                        // Should not arrive after MSG_READY (the engine
+                        // disables wire-side logging at I_InitGraphics),
+                        // but render it defensively if the engine emits
+                        // one anyway.
+                        handle_log_msg(payload, len);
+                        break;
                       default:
                         break;
                     }
@@ -481,5 +591,6 @@ int main(int argc, char **argv)
 
     client_video_shutdown();
     close(fd);
+    if (log_fp) { fclose(log_fp); log_fp = NULL; }
     return 0;
 }

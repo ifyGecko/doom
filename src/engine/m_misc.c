@@ -45,6 +45,7 @@
 #include "w_wad.h"
 
 #include "i_system.h"
+#include "i_initlog.h"
 #include "i_video.h"
 #include "v_video.h"
 
@@ -336,7 +337,7 @@ void M_LoadDefaults (void)
     if (i && i<myargc-1)
     {
 	defaultfile = myargv[i+1];
-	printf ("	default file: %s\n",defaultfile);
+	L_Infof ("	default file: %s",defaultfile);
     }
     else
 	defaultfile = basedefault;
@@ -345,6 +346,7 @@ void M_LoadDefaults (void)
     f = fopen (defaultfile, "r");
     if (f)
     {
+	int parsed = 0;
 	while (!feof(f))
 	{
 	    isstring = false;
@@ -372,10 +374,18 @@ void M_LoadDefaults (void)
 			    *(char**)defaults[i].location = newstring;
 			break;
 		    }
+		parsed++;
 	    }
 	}
 		
 	fclose (f);
+	L_Infof ("M_LoadDefaults: %d keys parsed from %s",
+	         parsed, defaultfile);
+    }
+    else
+    {
+	L_Warnf ("M_LoadDefaults: %s not found; using built-in defaults",
+	         defaultfile);
     }
 }
 

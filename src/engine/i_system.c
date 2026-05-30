@@ -33,6 +33,7 @@
 #include "doomdef.h"
 #include "m_misc.h"
 #include "i_video.h"
+#include "i_initlog.h"
 #include "g_game.h"
 
 #ifdef __GNUG__
@@ -109,15 +110,22 @@ byte*	I_AllocLow(int length)
 void I_Error (char *error, ...)
 {
     va_list	argptr;
+    char	composed[2048];
 
-    // Message first.
     va_start (argptr,error);
-    fprintf (stderr, "Error: ");
-    vfprintf (stderr,error,argptr);
-    fprintf (stderr, "\n");
+    vsnprintf (composed, sizeof composed, error, argptr);
     va_end (argptr);
 
-    fflush( stderr );
+    // Local terminal output (preserves the original behavior).
+    fprintf (stderr, "Error: %s\n", composed);
+    fflush  (stderr);
+
+    // Mirror onto the wire if init logging is active. After
+    // L_InitlogFinish (i.e. once we are inside the game loop), this
+    // degrades to stdout/stderr only - intentional, since runtime
+    // errors are out of scope for the client log.
+    L_Errorf ("%s", composed);
+    L_InitlogFlush();
 
     I_ShutdownGraphics();
     

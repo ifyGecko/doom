@@ -48,6 +48,7 @@
 
 #include "wire.h"
 #include "framing.h"
+#include "i_initlog.h"
 
 
 // ---- session state ---------------------------------------------------------
@@ -119,7 +120,8 @@ static int sanitize_basename(const char *in, size_t in_len,
 
 static void die(const char *what)
 {
-    fprintf(stderr, "I_NetBootstrap: %s: %s\n", what, strerror(errno));
+    L_Errorf("I_NetBootstrap: %s: %s", what, strerror(errno));
+    L_InitlogFlush();
     cleanup_temp();
     exit(1);
 }
@@ -143,7 +145,8 @@ static void inject_args(const uint8_t *payload, uint32_t len)
     int       i;
 
     if (len < 2) {
-        fprintf(stderr, "[engine] MSG_ARGS too short\n");
+        L_Errorf("[engine] MSG_ARGS too short");
+        L_InitlogFlush();
         cleanup_temp(); exit(1);
     }
     add_argc = (uint16_t)(payload[0] | (payload[1] << 8));
@@ -153,7 +156,8 @@ static void inject_args(const uint8_t *payload, uint32_t len)
     // Hard cap to keep the protocol from forcing the engine to allocate
     // unbounded memory. Way more than enough for "-skill N -warp E M".
     if (add_argc > 32) {
-        fprintf(stderr, "[engine] MSG_ARGS argc=%u too large\n", add_argc);
+        L_Errorf("[engine] MSG_ARGS argc=%u too large", add_argc);
+        L_InitlogFlush();
         cleanup_temp(); exit(1);
     }
 
@@ -166,13 +170,15 @@ static void inject_args(const uint8_t *payload, uint32_t len)
         char    *s;
 
         if (off + 2 > len) {
-            fprintf(stderr, "[engine] MSG_ARGS truncated header\n");
+            L_Errorf("[engine] MSG_ARGS truncated header");
+            L_InitlogFlush();
             cleanup_temp(); exit(1);
         }
         slen = (uint16_t)(payload[off] | (payload[off + 1] << 8));
         off += 2;
         if (slen > 64 || off + slen > len) {
-            fprintf(stderr, "[engine] MSG_ARGS bad string len\n");
+            L_Errorf("[engine] MSG_ARGS bad string len");
+            L_InitlogFlush();
             cleanup_temp(); exit(1);
         }
 
@@ -188,7 +194,13 @@ static void inject_args(const uint8_t *payload, uint32_t len)
     myargv = new_argv;
     myargc += add_argc;
 
-    fprintf(stderr, "[engine] received %u client arg(s)\n", (unsigned)add_argc);
+    L_Infof("[engine] received %u client arg(s)", (unsigned)add_argc);
+    {
+        int j;
+        for (j = myargc - add_argc; j < myargc; j++) {
+            L_Infof("[engine]   argv[%d] = %s", j, myargv[j]);
+        }
+    }
 }
 
 // Write a MSG_CONFIG payload to <temp_dir>/default.cfg and append
@@ -203,15 +215,17 @@ static void inject_config(const uint8_t *payload, uint32_t len)
     int      i;
 
     if (len > DOOMNET_CONFIG_MAX) {
-        fprintf(stderr, "[engine] MSG_CONFIG too large (%u bytes)\n", (unsigned)len);
+        L_Errorf("[engine] MSG_CONFIG too large (%u bytes)", (unsigned)len);
+        L_InitlogFlush();
         cleanup_temp(); exit(1);
     }
     if (!temp_dir[0]) {
-        fprintf(stderr, "[engine] MSG_CONFIG before temp dir was created\n");
+        L_Errorf("[engine] MSG_CONFIG before temp dir was created");
+        L_InitlogFlush();
         cleanup_temp(); exit(1);
     }
     if (temp_config[0]) {
-        fprintf(stderr, "[engine] duplicate MSG_CONFIG ignored\n");
+        L_Warnf("[engine] duplicate MSG_CONFIG ignored");
         return;
     }
 
@@ -235,7 +249,7 @@ static void inject_config(const uint8_t *payload, uint32_t len)
     myargv  = new_argv;
     myargc += 2;
 
-    fprintf(stderr, "[engine] received config (%u bytes) -> %s\n",
+    L_Infof("[engine] received config (%u bytes) -> %s",
             (unsigned)len, temp_config);
 }
 
@@ -264,10 +278,16 @@ void I_NetBootstrap(void)
 
     net_set_nodelay(client_fd);
 
+    // Start the session clock for init-log timestamps. Wire-side log
+    // shipping stays off until we see the HELLO and learn whether the
+    // client requested DOOMNET_CAP_INIT_LOG.
+    L_InitlogSetup(client_fd);
+
     // HELLO -----------------------------------------------------------------
     r = net_recv_blocking(client_fd, buf, sizeof buf, &type, &len);
     if (r != 1 || type != MSG_HELLO || len < 12) {
-        fprintf(stderr, "[engine] bad HELLO\n");
+        L_Errorf("[engine] bad HELLO");
+        L_InitlogFlush();
         cleanup_temp();
         exit(1);
     }
@@ -275,29 +295,45 @@ void I_NetBootstrap(void)
         uint16_t proto    = (uint16_t)(buf[0] | (buf[1] << 8));
         uint16_t scr_w    = (uint16_t)(buf[2] | (buf[3] << 8));
         uint16_t scr_h    = (uint16_t)(buf[4] | (buf[5] << 8));
-        // u32 caps at offset 6 - reserved
+        uint32_t caps     = (uint32_t)buf[6]
+                          | ((uint32_t)buf[7] << 8)
+                          | ((uint32_t)buf[8] << 16)
+                          | ((uint32_t)buf[9] << 24);
         uint16_t wad_nlen = (uint16_t)(buf[10] | (buf[11] << 8));
         uint32_t wad_size;
         char     wad_basename[64];
 
+        // Negotiate logging *before* any further L_* calls so we either
+        // ship them to the client or not based on what the client asked
+        // for. Anything emitted before this point (e.g. the "bad HELLO"
+        // error above) is local-only by design - the client hasn't told
+        // us yet whether it wants logs.
+        L_InitlogEnable(caps);
+        L_Infof("[engine] HELLO: proto=%u screen=%ux%u caps=0x%08x",
+                proto, scr_w, scr_h, caps);
+
         if (proto != DOOMNET_PROTO_VERSION) {
-            fprintf(stderr, "[engine] proto mismatch: client=%u server=%u\n",
-                    proto, DOOMNET_PROTO_VERSION);
+            L_Errorf("[engine] proto mismatch: client=%u server=%u",
+                     proto, DOOMNET_PROTO_VERSION);
+            L_InitlogFlush();
             exit(1);
         }
         if (scr_w != DOOMNET_SCREEN_W || scr_h != DOOMNET_SCREEN_H) {
-            fprintf(stderr, "[engine] screen size mismatch: client=%ux%u\n",
-                    scr_w, scr_h);
+            L_Errorf("[engine] screen size mismatch: client=%ux%u",
+                     scr_w, scr_h);
+            L_InitlogFlush();
             exit(1);
         }
         if (12 + (uint32_t)wad_nlen + 4 != len) {
-            fprintf(stderr, "[engine] malformed HELLO payload\n");
+            L_Errorf("[engine] malformed HELLO payload");
+            L_InitlogFlush();
             exit(1);
         }
         if (sanitize_basename((char *)buf + 12, wad_nlen,
                               wad_basename, sizeof wad_basename) < 0
             || strstr(wad_basename, ".wad") == NULL) {
-            fprintf(stderr, "[engine] bad wad_name in HELLO\n");
+            L_Errorf("[engine] bad wad_name in HELLO");
+            L_InitlogFlush();
             exit(1);
         }
         {
@@ -349,12 +385,16 @@ void I_NetBootstrap(void)
             if (!fp) die("fopen tmp wad");
 
             // WAD upload loop -----------------------------------------------
-            fprintf(stderr, "[engine] receiving %s (%u bytes) ...\n",
+            L_Infof("[engine] receiving %s (%u bytes) ...",
                     wad_basename, (unsigned)wad_size);
 
             while (received < wad_size) {
                 r = net_recv_blocking(client_fd, buf, sizeof buf, &type, &len);
-                if (r != 1) { fprintf(stderr, "[engine] WAD upload aborted\n"); exit(1); }
+                if (r != 1) {
+                    L_Errorf("[engine] WAD upload aborted");
+                    L_InitlogFlush();
+                    exit(1);
+                }
                 if (type == MSG_ARGS) {
                     // Client may interleave its CLI args (e.g. -warp, -skill)
                     // anywhere between HELLO_ACK and WAD_DONE. Process and
@@ -374,7 +414,8 @@ void I_NetBootstrap(void)
                     break;
                 }
                 if (type != MSG_WAD_CHUNK || len < 4) {
-                    fprintf(stderr, "[engine] unexpected msg 0x%02x during upload\n", type);
+                    L_Errorf("[engine] unexpected msg 0x%02x during upload", type);
+                    L_InitlogFlush();
                     exit(1);
                 }
                 {
@@ -385,12 +426,15 @@ void I_NetBootstrap(void)
                     uint32_t chunk  = len - 4;
                     uint8_t  ackbuf[4];
                     if (offset != received) {
-                        fprintf(stderr, "[engine] chunk offset %u expected %u\n",
-                                (unsigned)offset, (unsigned)received);
+                        L_Errorf("[engine] chunk offset %u expected %u",
+                                 (unsigned)offset, (unsigned)received);
+                        L_InitlogFlush();
                         exit(1);
                     }
                     if (received + chunk > wad_size) {
-                        fprintf(stderr, "[engine] WAD overrun\n"); exit(1);
+                        L_Errorf("[engine] WAD overrun");
+                        L_InitlogFlush();
+                        exit(1);
                     }
                     if (fwrite(buf + 4, 1, chunk, fp) != chunk) die("fwrite wad");
                     received += chunk;
@@ -406,16 +450,20 @@ void I_NetBootstrap(void)
             if (type != MSG_WAD_DONE) {
                 r = net_recv_blocking(client_fd, buf, sizeof buf, &type, &len);
                 if (r != 1 || type != MSG_WAD_DONE) {
-                    fprintf(stderr, "[engine] expected WAD_DONE\n"); exit(1);
+                    L_Errorf("[engine] expected WAD_DONE");
+                    L_InitlogFlush();
+                    exit(1);
                 }
             }
             if (received != wad_size) {
-                fprintf(stderr, "[engine] WAD size mismatch: got %u expected %u\n",
-                        (unsigned)received, (unsigned)wad_size);
+                L_Errorf("[engine] WAD size mismatch: got %u expected %u",
+                         (unsigned)received, (unsigned)wad_size);
+                L_InitlogFlush();
                 exit(1);
             }
             fclose(fp);
-            fprintf(stderr, "[engine] WAD received OK\n");
+            L_Infof("[engine] WAD received OK (%u bytes -> %s)",
+                    (unsigned)received, temp_wad);
         }
 
         // Hand the freshly-received WAD to the engine by its exact path.
@@ -450,15 +498,22 @@ void I_InitGraphics(void)
 {
     if (initialized) return;
     if (client_fd < 0) {
-        fprintf(stderr, "I_InitGraphics: I_NetBootstrap was not called\n");
+        L_Errorf("I_InitGraphics: I_NetBootstrap was not called");
+        L_InitlogFlush();
         exit(1);
     }
     signal(SIGINT, (void (*)(int)) I_Quit);
 
     if (net_set_nonblocking(client_fd) < 0) {
-        fprintf(stderr, "I_InitGraphics: set non-blocking: %s\n", strerror(errno));
+        L_Errorf("I_InitGraphics: set non-blocking: %s", strerror(errno));
+        L_InitlogFlush();
         exit(1);
     }
+
+    // Cut-off for client-side init logging: everything before this is
+    // forwarded to the client (if it asked); everything after - game tics,
+    // frame I/O, runtime errors - stays on the engine's local terminal.
+    L_InitlogFinish();
 
     // No payload - engine is up, frames imminent.
     if (net_send(client_fd, MSG_READY, NULL, 0) < 0) {

@@ -65,9 +65,14 @@ common_sources = files(
 
 # ---- doom-engine -----------------------------------------------------------
 #
-# Headless game engine. Replaces the original SDL i_video.c with
-# src/engine/i_video_net.c, which streams rendered frames over TCP and
-# receives input events. All other DOOM .c files are unmodified.
+# Headless game engine. Follows the chocolate-doom philosophy of preserving
+# the original 1990s simulation faithfully: physics, AI, rendering math,
+# collision, level logic, and the original DOOM bugs are NOT to be altered.
+# What may be modified is the surrounding infrastructure - the SDL video
+# layer was replaced wholesale by a net transport (i_video_net.c in place
+# of i_video.c), the audio playback layer was stripped to ease porting,
+# and observability such as the init logger (i_initlog.c) instruments any
+# source file it needs to, as long as the change does not affect gameplay.
 #
 engine_sources = files(
   # core / globals
@@ -82,6 +87,7 @@ engine_sources = files(
   'src/engine/i_supervisor.c',
   'src/engine/i_system.c',
   'src/engine/i_video_net.c',
+  'src/engine/i_initlog.c',
 
   # top-level doom driver
   'src/engine/d_main.c',

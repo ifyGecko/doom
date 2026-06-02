@@ -1,0 +1,105 @@
+# AFL++ dictionary for doom-engine-fuzz.
+#
+# Tokens are inserted by AFL's deterministic stages and havoc mutator.
+# Keep them short and focused on what an unaware mutator is unlikely to
+# stumble onto by chance: framing-protocol headers, WAD magic and lump
+# names, engine CLI flags, and default.cfg keys.
+
+# ---- wire.h message type bytes -------------------------------------------
+"\x01"                  # MSG_HELLO
+"\x02"                  # MSG_ARGS
+"\x03"                  # MSG_WAD_CHUNK
+"\x04"                  # MSG_WAD_DONE
+"\x05"                  # MSG_INPUT_EVENT
+"\x06"                  # MSG_PING
+"\x07"                  # MSG_BYE
+"\x08"                  # MSG_CONFIG
+
+# ---- WAD header magic ----------------------------------------------------
+wad_iwad="IWAD"
+wad_pwad="PWAD"
+
+# ---- WAD lump names (looked up by name in r_data.c / p_setup.c / etc.) ---
+lump_playpal="PLAYPAL"
+lump_colormap="COLORMAP"
+lump_endoom="ENDOOM"
+lump_dehacked="DEHACKED"
+lump_e1m1="E1M1"
+lump_e1m2="E1M2"
+lump_e2m1="E2M1"
+lump_e3m1="E3M1"
+lump_e4m1="E4M1"
+lump_map01="MAP01"
+lump_map02="MAP02"
+lump_map32="MAP32"
+lump_things="THINGS"
+lump_linedefs="LINEDEFS"
+lump_sidedefs="SIDEDEFS"
+lump_vertexes="VERTEXES"
+lump_segs="SEGS"
+lump_ssectors="SSECTORS"
+lump_nodes="NODES"
+lump_sectors="SECTORS"
+lump_reject="REJECT"
+lump_blockmap="BLOCKMAP"
+lump_texture1="TEXTURE1"
+lump_texture2="TEXTURE2"
+lump_pnames="PNAMES"
+lump_genmidi="GENMIDI"
+lump_dmxgus="DMXGUS"
+lump_demo1="DEMO1"
+lump_demo2="DEMO2"
+lump_demo3="DEMO3"
+lump_s_start="S_START"
+lump_s_end="S_END"
+lump_p_start="P_START"
+lump_p_end="P_END"
+lump_f_start="F_START"
+lump_f_end="F_END"
+
+# ---- Engine CLI flags (parsed by M_CheckParm in d_main.c, g_game.c, etc.) -
+arg_skill="-skill"
+arg_warp="-warp"
+arg_episode="-episode"
+arg_file="-file"
+arg_iwad="-iwad"
+arg_config="-config"
+arg_respawn="-respawn"
+arg_fast="-fast"
+arg_nomonsters="-nomonsters"
+arg_turbo="-turbo"
+arg_devparm="-devparm"
+
+# ---- default.cfg key names (parsed by M_LoadDefaults in m_misc.c) --------
+# These are the canonical token names that fscanf("%79s %[^\n]") expects on
+# the LHS of each line; the engine matches them against the static defaults[]
+# table in m_misc.c.
+cfg_mouse_sensitivity="mouse_sensitivity"
+cfg_sfx_volume="sfx_volume"
+cfg_music_volume="music_volume"
+cfg_show_messages="show_messages"
+cfg_key_right="key_right"
+cfg_key_left="key_left"
+cfg_key_up="key_up"
+cfg_key_down="key_down"
+cfg_key_strafeleft="key_strafeleft"
+cfg_key_straferight="key_straferight"
+cfg_key_fire="key_fire"
+cfg_key_use="key_use"
+cfg_key_strafe="key_strafe"
+cfg_key_speed="key_speed"
+cfg_use_mouse="use_mouse"
+cfg_mouseb_fire="mouseb_fire"
+cfg_mouseb_strafe="mouseb_strafe"
+cfg_mouseb_forward="mouseb_forward"
+cfg_use_joystick="use_joystick"
+cfg_joyb_fire="joyb_fire"
+cfg_joyb_strafe="joyb_strafe"
+cfg_joyb_use="joyb_use"
+cfg_joyb_speed="joyb_speed"
+cfg_screenblocks="screenblocks"
+cfg_detaillevel="detaillevel"
+cfg_snd_channels="snd_channels"
+cfg_usegamma="usegamma"
+cfg_chatmacro0="chatmacro0"
+cfg_chatmacro1="chatmacro1"

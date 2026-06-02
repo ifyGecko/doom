@@ -1,0 +1,5 @@
+option('fuzzing',
+  type        : 'boolean',
+  value       : false,
+  description : 'Build the AFL++ fuzz target (doom-engine-fuzz + shmpath_preload). Use with CC=afl-clang-fast.',
+)

@@ -196,3 +196,48 @@ executable('doom-config',
   dependencies        : [ncurses_dep],
   install             : false,
 )
+
+# ---- doom-engine-fuzz ------------------------------------------------------
+#
+# Coverage-instrumented build of the engine for AFL++. Linked with --wrap
+# stubs (see tools/fuzz/harness_wraps.c) that:
+#   - replace I_Supervise so each iteration skips the TCP supervisor and
+#     reads the test case from fd 0 directly
+#   - short-circuit D_DoomLoop as a defensive belt-and-suspenders
+#   - route exit() through __real_exit so cleanup_temp atexit handlers
+#     actually run (otherwise /dev/shm/doom-net-* dirs would pile up)
+#   - turn getchar() into a no-op so the modifiedgame "press enter"
+#     banner never stalls a fuzz iteration
+#
+# Pairs with one LD_PRELOAD shim at runtime, shmpath_preload.so (built
+# below), which rewrites /tmp/doom-net-* to /dev/shm/* and adapts the
+# engine's socket-style recv/write calls to the AFL stdin pipe.
+#
+# Build with:
+#   CC=$HOME/AFLplusplus/afl-clang-fast \
+#     meson setup build-fuzz -Dfuzzing=true
+#   ninja -C build-fuzz
+#
+if get_option('fuzzing')
+  fuzz_sources = engine_sources + common_sources + files(
+    'tools/fuzz/harness_wraps.c',
+  )
+
+  executable('doom-engine-fuzz',
+    fuzz_sources,
+    include_directories : [engine_inc, common_inc],
+    dependencies        : [m_dep],
+    link_args : [
+      '-Wl,--wrap=I_Supervise',
+      '-Wl,--wrap=D_DoomLoop',
+      '-Wl,--wrap=exit',
+      '-Wl,--wrap=getchar',
+    ],
+    install : false,
+  )
+
+  # The LD_PRELOAD shim must NOT be coverage-instrumented (its job is to
+  # ride along with the engine, not be fuzzed itself; afl-clang-fast'd
+  # libraries pull in __afl_area_ptr which only resolves inside the AFL
+  # target). build.sh compiles it directly with cc instead.
+endif
